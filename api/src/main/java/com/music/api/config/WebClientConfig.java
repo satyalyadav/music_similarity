@@ -25,6 +25,14 @@ public class WebClientConfig {
     }
 
     @Bean
+    public WebClient lastFmWebClient(WebClient.Builder builder) {
+        return builder
+            .baseUrl("https://ws.audioscrobbler.com/2.0")
+            .exchangeStrategies(defaultStrategies())
+            .build();
+    }
+
+    @Bean
     public WebClient.Builder webClientBuilder() {
         return WebClient.builder();
     }

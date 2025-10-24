@@ -57,6 +57,50 @@ public class SpotifyApiClient {
         }
     }
 
+    public SeedTrack getTrack(String accessToken, String trackId) {
+        try {
+            SpotifyTrack track = spotifyWebClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/tracks/{id}")
+                    .build(trackId))
+                .accept(MediaType.APPLICATION_JSON)
+                .headers(headers -> headers.setBearerAuth(accessToken))
+                .retrieve()
+                .bodyToMono(SpotifyTrack.class)
+                .block();
+            return mapTrack(track);
+        } catch (WebClientResponseException ex) {
+            log.debug("Spotify track lookup failed for {}: {}", trackId, ex.getStatusCode());
+            throw ex;
+        }
+    }
+
+    public SeedTrack searchTrack(String accessToken, String trackName, String artistName) {
+        String query = String.format("track:\"%s\" artist:\"%s\"", trackName, artistName);
+        try {
+            SearchResponse response = spotifyWebClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/search")
+                    .queryParam("q", query)
+                    .queryParam("type", "track")
+                    .queryParam("limit", 1)
+                    .build())
+                .accept(MediaType.APPLICATION_JSON)
+                .headers(headers -> headers.setBearerAuth(accessToken))
+                .retrieve()
+                .bodyToMono(SearchResponse.class)
+                .block();
+
+            if (response == null || response.tracks() == null || response.tracks().items() == null || response.tracks().items().isEmpty()) {
+                return null;
+            }
+            return mapTrack(response.tracks().items().get(0));
+        } catch (WebClientResponseException ex) {
+            log.debug("Spotify search failed for {} - {}: {}", trackName, artistName, ex.getStatusCode());
+            throw ex;
+        }
+    }
+
     public List<SeedTrack> getRecentlyPlayed(String accessToken, int limit) {
         try {
             RecentlyPlayedResponse response = spotifyWebClient.get()
@@ -161,4 +205,10 @@ public class SpotifyApiClient {
         String imageUrl,
         String spotifyUrl
     ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SearchResponse(Tracks tracks) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Tracks(List<SpotifyTrack> items) {}
 }

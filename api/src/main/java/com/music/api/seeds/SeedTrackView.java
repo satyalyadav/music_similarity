@@ -10,7 +10,7 @@ public record SeedTrackView(
     String imageUrl,
     String spotifyUrl
 ) {
-    static SeedTrackView fromSeedTrack(SeedTrack track) {
+    public static SeedTrackView fromSeedTrack(SeedTrack track) {
         return new SeedTrackView(
             track.id(),
             track.name(),
