@@ -1,0 +1,18 @@
+# Maven / Java build output
+api/target/
+
+# Node / frontend build output
+frontend/dist/
+frontend/node_modules/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# Environment / secrets
+api/.env
+
+# OS files
+.DS_Store
+Thumbs.db
