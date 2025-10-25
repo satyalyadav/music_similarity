@@ -17,6 +17,8 @@ import com.music.api.auth.UserAuthRepository;
 import com.music.api.seeds.SeedTrackView;
 import com.music.api.similarity.CandidateMappingService;
 import com.music.api.similarity.CandidateMappingService.MappedTrack;
+import com.music.api.similarity.RankingService;
+import com.music.api.similarity.RankingService.RankedTrack;
 import com.music.api.similarity.SimilarityService;
 import com.music.api.similarity.SimilarityService.SimilarityResult;
 import com.music.api.spotify.SpotifyApiClient;
@@ -30,19 +32,22 @@ public class SimilarityController {
     private final SpotifyApiClient spotifyApiClient;
     private final SimilarityService similarityService;
     private final CandidateMappingService candidateMappingService;
+    private final RankingService rankingService;
 
     public SimilarityController(
         UserAuthRepository userAuthRepository,
         SpotifyAuthService spotifyAuthService,
         SpotifyApiClient spotifyApiClient,
         SimilarityService similarityService,
-        CandidateMappingService candidateMappingService
+        CandidateMappingService candidateMappingService,
+        RankingService rankingService
     ) {
         this.userAuthRepository = userAuthRepository;
         this.spotifyAuthService = spotifyAuthService;
         this.spotifyApiClient = spotifyApiClient;
         this.similarityService = similarityService;
         this.candidateMappingService = candidateMappingService;
+        this.rankingService = rankingService;
     }
 
     @GetMapping("/similarity/candidates")
@@ -59,8 +64,9 @@ public class SimilarityController {
 
         SimilarityResult result = similarityService.getSimilarTracks(seedTrack.artist(), seedTrack.name());
         List<MappedTrack> mapped = candidateMappingService.mapCandidates(userAuth, result.tracks());
-        List<CandidateTrackView> items = mapped.stream()
-            .map(CandidateTrackView::fromMappedTrack)
+        List<RankedTrack> ranked = rankingService.rank(userAuth, seedTrack.artist(), mapped);
+        List<CandidateTrackView> items = ranked.stream()
+            .map(CandidateTrackView::fromRankedTrack)
             .toList();
 
         SimilarityResponse response = new SimilarityResponse(
@@ -110,23 +116,29 @@ public class SimilarityController {
     public record CandidateTrackView(
         String name,
         String artist,
-        double matchScore,
         String spotifyId,
+        double score,
+        double lastFmMatch,
+        double tagOverlap,
         double confidence,
+        Integer popularity,
         boolean cached,
         String lastFmUrl,
         String imageUrl
     ) {
-        static CandidateTrackView fromMappedTrack(MappedTrack mapped) {
+        static CandidateTrackView fromRankedTrack(RankedTrack ranked) {
             return new CandidateTrackView(
-                mapped.source().name(),
-                mapped.source().artist(),
-                mapped.source().matchScore(),
-                mapped.spotifyId(),
-                mapped.confidence(),
-                mapped.cached(),
-                mapped.source().url(),
-                mapped.source().imageUrl()
+                ranked.name(),
+                ranked.artist(),
+                ranked.spotifyId(),
+                ranked.score(),
+                ranked.rawMatch(),
+                ranked.tagOverlap(),
+                ranked.confidence(),
+                ranked.popularity(),
+                ranked.cached(),
+                ranked.lastFmUrl(),
+                ranked.imageUrl()
             );
         }
     }

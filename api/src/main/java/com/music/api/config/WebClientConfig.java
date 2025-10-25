@@ -33,6 +33,15 @@ public class WebClientConfig {
     }
 
     @Bean
+    public WebClient musicBrainzWebClient(WebClient.Builder builder) {
+        return builder
+            .baseUrl("https://musicbrainz.org/ws/2")
+            .defaultHeader("User-Agent", "music-similarity-app/1.0 (support@example.com)")
+            .exchangeStrategies(defaultStrategies())
+            .build();
+    }
+
+    @Bean
     public WebClient.Builder webClientBuilder() {
         return WebClient.builder();
     }
