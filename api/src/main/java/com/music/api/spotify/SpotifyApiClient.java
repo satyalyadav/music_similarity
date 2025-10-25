@@ -75,6 +75,42 @@ public class SpotifyApiClient {
         }
     }
 
+    public CreatedPlaylist createPlaylist(String accessToken, String spotifyUserId, String name, boolean isPublic) {
+        try {
+            return spotifyWebClient.post()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/users/{userId}/playlists")
+                    .build(spotifyUserId))
+                .contentType(MediaType.APPLICATION_JSON)
+                .headers(headers -> headers.setBearerAuth(accessToken))
+                .bodyValue(new CreatePlaylistPayload(name, null, isPublic))
+                .retrieve()
+                .bodyToMono(CreatedPlaylist.class)
+                .block();
+        } catch (WebClientResponseException ex) {
+            log.debug("Spotify create playlist failed: {}", ex.getStatusCode());
+            throw ex;
+        }
+    }
+
+    public void addTracksToPlaylist(String accessToken, String playlistId, List<String> uris) {
+        try {
+            spotifyWebClient.post()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/playlists/{playlistId}/tracks")
+                    .build(playlistId))
+                .contentType(MediaType.APPLICATION_JSON)
+                .headers(headers -> headers.setBearerAuth(accessToken))
+                .bodyValue(new AddTracksPayload(uris))
+                .retrieve()
+                .bodyToMono(SnapshotResponse.class)
+                .block();
+        } catch (WebClientResponseException ex) {
+            log.debug("Spotify add tracks failed for playlist {}: {}", playlistId, ex.getStatusCode());
+            throw ex;
+        }
+    }
+
     public SeedTrack searchTrack(String accessToken, String trackName, String artistName) {
         String query = String.format("track:\"%s\" artist:\"%s\"", trackName, artistName);
         try {
@@ -210,6 +246,24 @@ public class SpotifyApiClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SearchResponse(Tracks tracks) {}
+
+    public record CreatePlaylistPayload(
+        String name,
+        String description,
+        @JsonProperty("public") boolean isPublic
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record CreatedPlaylist(
+        String id,
+        String name,
+        @JsonProperty("external_urls") SpotifyExternalUrls externalUrls
+    ) {}
+
+    private record AddTracksPayload(List<String> uris) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SnapshotResponse(@JsonProperty("snapshot_id") String snapshotId) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Tracks(List<SpotifyTrack> items) {}

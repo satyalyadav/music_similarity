@@ -29,7 +29,12 @@ public class SpotifyAuthService {
 
     private static final Logger log = LoggerFactory.getLogger(SpotifyAuthService.class);
     private static final String AUTHORIZATION_ENDPOINT = "https://accounts.spotify.com/authorize";
-    private static final List<String> REQUIRED_SCOPES = List.of("user-top-read", "user-read-recently-played");
+    private static final List<String> REQUIRED_SCOPES = List.of(
+        "user-top-read",
+        "user-read-recently-played",
+        "playlist-modify-public",
+        "playlist-modify-private"
+    );
 
     private final SpotifyOAuthProperties properties;
     private final OAuthStateStore stateStore;
