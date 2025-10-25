@@ -20,4 +20,14 @@ public class ResilienceConfig {
             .build();
         return RateLimiter.of("lastfm", config);
     }
+
+    @Bean
+    public RateLimiter musicBrainzRateLimiter() {
+        RateLimiterConfig config = RateLimiterConfig.custom()
+            .limitForPeriod(1)
+            .limitRefreshPeriod(Duration.ofSeconds(1))
+            .timeoutDuration(Duration.ofSeconds(5))
+            .build();
+        return RateLimiter.of("musicbrainz", config);
+    }
 }

@@ -21,9 +21,14 @@ public class MusicBrainzClient {
     private static final Logger log = LoggerFactory.getLogger(MusicBrainzClient.class);
 
     private final WebClient musicBrainzWebClient;
+    private final io.github.resilience4j.ratelimiter.RateLimiter musicBrainzRateLimiter;
 
-    public MusicBrainzClient(@Qualifier("musicBrainzWebClient") WebClient musicBrainzWebClient) {
+    public MusicBrainzClient(
+        @Qualifier("musicBrainzWebClient") WebClient musicBrainzWebClient,
+        io.github.resilience4j.ratelimiter.RateLimiter musicBrainzRateLimiter
+    ) {
         this.musicBrainzWebClient = musicBrainzWebClient;
+        this.musicBrainzRateLimiter = musicBrainzRateLimiter;
     }
 
     public List<String> fetchArtistTags(String artistName) {
@@ -31,19 +36,21 @@ public class MusicBrainzClient {
             return List.of();
         }
 
+        java.util.function.Supplier<ArtistSearchResponse> supplier = () -> musicBrainzWebClient.get()
+            .uri(uriBuilder -> uriBuilder
+                .path("/artist")
+                .queryParam("query", "artist:\"" + artistName + "\"")
+                .queryParam("fmt", "json")
+                .queryParam("limit", 1)
+                .queryParam("inc", "tags")
+                .build())
+            .accept(MediaType.APPLICATION_JSON)
+            .retrieve()
+            .bodyToMono(ArtistSearchResponse.class)
+            .block();
+
         try {
-            ArtistSearchResponse response = musicBrainzWebClient.get()
-                .uri(uriBuilder -> uriBuilder
-                    .path("/artist")
-                    .queryParam("query", "artist:\"" + artistName + "\"")
-                    .queryParam("fmt", "json")
-                    .queryParam("limit", 1)
-                    .queryParam("inc", "tags")
-                    .build())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .bodyToMono(ArtistSearchResponse.class)
-                .block();
+            ArtistSearchResponse response = io.github.resilience4j.ratelimiter.RateLimiter.decorateSupplier(musicBrainzRateLimiter, supplier).get();
 
             if (response == null || response.artists() == null || response.artists().isEmpty()) {
                 return List.of();

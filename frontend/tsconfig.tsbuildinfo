@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/config.ts","./src/env.d.ts","./src/main.tsx","./src/types.ts","./src/components/QueuePanel.tsx","./src/components/RecommendationCard.tsx","./src/hooks/useSpotifyPlayback.ts"],"version":"5.9.3"}

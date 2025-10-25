@@ -1,0 +1,65 @@
+.queue {
+  background: white;
+  border-radius: 18px;
+  padding: 1.25rem;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+}
+
+.queue__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.75rem;
+}
+
+.queue__empty {
+  color: #64748b;
+  margin: 0;
+}
+
+.queue ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.queue li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.queue li:last-child {
+  border-bottom: none;
+}
+
+.queue__track-name {
+  margin: 0;
+  font-weight: 600;
+}
+
+.queue__track-artist {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.queue button {
+  border: none;
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.queue button:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
