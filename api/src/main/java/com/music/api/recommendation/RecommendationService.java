@@ -61,7 +61,7 @@ public class RecommendationService {
         SeedTrack seedTrack = fetchTrackWithRefresh(userAuth, normalizedTrackId);
 
         SimilarityResult result = similarityService.getSimilarTracks(seedTrack.artist(), seedTrack.name());
-        List<MappedTrack> mapped = candidateMappingService.mapCandidates(userAuth, result.tracks());
+    List<MappedTrack> mapped = candidateMappingService.mapCandidates(userAuth, result.tracks(), limit);
         List<RankedTrack> ranked = rankingService.rank(userAuth, seedTrack.artist(), mapped).stream()
             .filter(track -> track.spotifyId() != null)
             .limit(limit)

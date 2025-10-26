@@ -35,38 +35,60 @@ public class CandidateMappingService {
         this.spotifyAuthService = spotifyAuthService;
     }
 
-    public List<MappedTrack> mapCandidates(UserAuth userAuth, List<LastFmTrack> candidates) {
-        List<MappedTrack> mapped = new ArrayList<>(candidates.size());
+    public List<MappedTrack> mapCandidates(UserAuth userAuth, List<LastFmTrack> candidates, int desiredCount) {
+        int positiveDesired = Math.max(desiredCount, 0);
+        int processingBudget = positiveDesired > 0
+            ? Math.min(candidates.size(), Math.max(positiveDesired * 3, positiveDesired + 15))
+            : candidates.size();
+        int mappedThreshold = positiveDesired > 0 ? Math.max(positiveDesired * 2, positiveDesired + 5) : Integer.MAX_VALUE;
+
+        List<MappedTrack> mapped = new ArrayList<>(Math.min(processingBudget, candidates.size()));
         UserAuth currentAuth = userAuth;
+        int processed = 0;
+        int mappedWithSpotify = 0;
 
         for (LastFmTrack candidate : candidates) {
+            if (processed >= processingBudget) {
+                break;
+            }
+            processed++;
+
             String key = SimilarityKeys.normalize(candidate.artist(), candidate.name());
 
             Optional<IdMapEntry> cached = idMapRepository.findFresh(key);
+            MappedTrack mappedTrack;
             if (cached.isPresent()) {
                 IdMapEntry entry = cached.get();
-                mapped.add(new MappedTrack(candidate, entry.spotifyId(), entry.confidence(), true, null));
-                continue;
+                double confidence = entry.confidence() != null ? entry.confidence() : 1.0;
+                mappedTrack = new MappedTrack(candidate, entry.spotifyId(), confidence, true, null);
+            } else {
+                SearchResult searchResult = performSearch(currentAuth, candidate);
+                if (searchResult != null) {
+                    currentAuth = searchResult.userAuth();
+                    if (searchResult.track() != null) {
+                        double confidence = candidate.matchScore() > 0 ? candidate.matchScore() : 1.0;
+                        idMapRepository.upsert(key, searchResult.track().id(), confidence);
+                        mappedTrack = new MappedTrack(
+                            candidate,
+                            searchResult.track().id(),
+                            confidence,
+                            false,
+                            searchResult.track().imageUrl()
+                        );
+                    } else {
+                        mappedTrack = new MappedTrack(candidate, null, 0.0, false, null);
+                    }
+                } else {
+                    mappedTrack = new MappedTrack(candidate, null, 0.0, false, null);
+                }
             }
 
-            SearchResult searchResult = performSearch(currentAuth, candidate);
-            if (searchResult != null) {
-                currentAuth = searchResult.userAuth();
-                if (searchResult.track() != null) {
-                    double confidence = candidate.matchScore() > 0 ? candidate.matchScore() : 1.0;
-                    idMapRepository.upsert(key, searchResult.track().id(), confidence);
-                    mapped.add(new MappedTrack(
-                        candidate,
-                        searchResult.track().id(),
-                        confidence,
-                        false,
-                        searchResult.track().imageUrl()
-                    ));
-                } else {
-                    mapped.add(new MappedTrack(candidate, null, 0.0, false, null));
+            mapped.add(mappedTrack);
+            if (mappedTrack.spotifyId() != null) {
+                mappedWithSpotify++;
+                if (mappedWithSpotify >= mappedThreshold) {
+                    break;
                 }
-            } else {
-                mapped.add(new MappedTrack(candidate, null, 0.0, false, null));
             }
         }
 
