@@ -36,8 +36,19 @@ public class TrackCacheService {
         if (spotifyId == null || spotifyId.isBlank()) {
             return Optional.empty();
         }
-        return repository.findFresh(spotifyId)
-            .or(() -> fetchAndCache(userAuth, spotifyId));
+        Optional<TrackCacheEntry> cached = repository.findFresh(spotifyId);
+        if (cached.isPresent() && hasCompleteMetadata(cached.get())) {
+            return cached;
+        }
+        Optional<TrackCacheEntry> refreshed = fetchAndCache(userAuth, spotifyId);
+        if (refreshed.isPresent()) {
+            return refreshed;
+        }
+        return cached;
+    }
+
+    private boolean hasCompleteMetadata(TrackCacheEntry entry) {
+        return entry.imageUrl() != null && !entry.imageUrl().isBlank();
     }
 
     private Optional<TrackCacheEntry> fetchAndCache(UserAuth userAuth, String spotifyId) {

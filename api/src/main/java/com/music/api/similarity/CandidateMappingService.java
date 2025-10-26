@@ -45,7 +45,7 @@ public class CandidateMappingService {
             Optional<IdMapEntry> cached = idMapRepository.findFresh(key);
             if (cached.isPresent()) {
                 IdMapEntry entry = cached.get();
-                mapped.add(new MappedTrack(candidate, entry.spotifyId(), entry.confidence(), true));
+                mapped.add(new MappedTrack(candidate, entry.spotifyId(), entry.confidence(), true, null));
                 continue;
             }
 
@@ -55,12 +55,18 @@ public class CandidateMappingService {
                 if (searchResult.track() != null) {
                     double confidence = candidate.matchScore() > 0 ? candidate.matchScore() : 1.0;
                     idMapRepository.upsert(key, searchResult.track().id(), confidence);
-                    mapped.add(new MappedTrack(candidate, searchResult.track().id(), confidence, false));
+                    mapped.add(new MappedTrack(
+                        candidate,
+                        searchResult.track().id(),
+                        confidence,
+                        false,
+                        searchResult.track().imageUrl()
+                    ));
                 } else {
-                    mapped.add(new MappedTrack(candidate, null, 0.0, false));
+                    mapped.add(new MappedTrack(candidate, null, 0.0, false, null));
                 }
             } else {
-                mapped.add(new MappedTrack(candidate, null, 0.0, false));
+                mapped.add(new MappedTrack(candidate, null, 0.0, false, null));
             }
         }
 
@@ -89,7 +95,8 @@ public class CandidateMappingService {
         LastFmTrack source,
         String spotifyId,
         double confidence,
-        boolean cached
+        boolean cached,
+        String spotifyImageUrl
     ) {}
 
     private record SearchResult(SeedTrack track, UserAuth userAuth) {}

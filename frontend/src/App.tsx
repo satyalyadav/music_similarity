@@ -2,7 +2,6 @@ import { FormEvent, useMemo, useState } from 'react';
 import { API_BASE_URL, RECOMMENDATION_LIMIT } from './config';
 import { RecommendationCard } from './components/RecommendationCard';
 import { QueuePanel } from './components/QueuePanel';
-import { useSpotifyPlayback } from './hooks/useSpotifyPlayback';
 import { PlaylistResponse, RecommendationResponse, RecommendationTrackView } from './types';
 import './App.css';
 
@@ -12,8 +11,6 @@ function App() {
   const [userId, setUserId] = useState('');
   const [seedInput, setSeedInput] = useState('');
   const [limit, setLimit] = useState(RECOMMENDATION_LIMIT);
-  const [isPremium, setIsPremium] = useState(false);
-  const [playHere, setPlayHere] = useState(false);
 
   const [recommendations, setRecommendations] = useState<RecommendationTrackView[]>([]);
   const [queue, setQueue] = useState<RecommendationTrackView[]>([]);
@@ -26,8 +23,6 @@ function App() {
   const [playlistSaving, setPlaylistSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  const playbackStatus = useSpotifyPlayback(isPremium && playHere);
 
   const queueIds = useMemo(() => new Set(queue.map((track) => track.spotifyId)), [queue]);
 
@@ -162,27 +157,6 @@ function App() {
               />
             </label>
 
-            <div className="toggles">
-              <label className="toggle">
-                <input type="checkbox" checked={isPremium} onChange={(e) => {
-                  setIsPremium(e.target.checked);
-                  if (!e.target.checked) {
-                    setPlayHere(false);
-                  }
-                }} />
-                <span>I&apos;m on Spotify Premium</span>
-              </label>
-              {isPremium && (
-                <label className="toggle">
-                  <input type="checkbox" checked={playHere} onChange={(e) => setPlayHere(e.target.checked)} />
-                  <span>
-                    Play here
-                    <small className="toggle__hint">{playbackStatus === 'ready' ? 'Player ready' : playbackStatus}</small>
-                  </span>
-                </label>
-              )}
-            </div>
-
             <button type="submit" className="primary" disabled={loading}>
               {loading ? 'Fetching...' : 'Get recommendations'}
             </button>
@@ -193,9 +167,18 @@ function App() {
 
           {seedMeta && (
             <div className="seed-meta">
-              <p className="eyebrow">Seed track</p>
-              <h2>{seedMeta.name}</h2>
-              <p className="subtitle">{seedMeta.artist} — strategy {strategy}</p>
+              <img
+                src={seedMeta.imageUrl || `https://via.placeholder.com/220?text=${encodeURIComponent(seedMeta.name)}`}
+                alt={`${seedMeta.name} cover art`}
+                className="seed-meta__art"
+                loading="lazy"
+              />
+              <div className="seed-meta__content">
+                <p className="eyebrow">Seed track</p>
+                <h2>{seedMeta.name}</h2>
+                <p className="subtitle">{seedMeta.artist}</p>
+                {strategy && <p className="seed-meta__strategy">Strategy: {strategy}</p>}
+              </div>
             </div>
           )}
         </section>
@@ -234,6 +217,7 @@ function App() {
           </aside>
         </section>
       </main>
+
     </div>
   );
 }

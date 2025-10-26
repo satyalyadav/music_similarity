@@ -50,9 +50,19 @@ public class RankingService {
         double tagOverlap = artistTagService.jaccard(seedTags, candidateTags);
         double compositeScore = baseScore + (TAG_WEIGHT * tagOverlap);
 
-        Integer popularity = resolvePopularity(userAuth, candidate.spotifyId())
+        Optional<TrackCacheEntry> cachedTrack = resolveTrackDetails(userAuth, candidate.spotifyId());
+
+        Integer popularity = cachedTrack
             .map(TrackCacheEntry::popularity)
             .orElse(null);
+
+        String imageUrl = candidate.spotifyImageUrl();
+        if ((imageUrl == null || imageUrl.isBlank()) && cachedTrack.isPresent()) {
+            imageUrl = cachedTrack.get().imageUrl();
+        }
+        if (imageUrl == null || imageUrl.isBlank()) {
+            imageUrl = candidate.source().imageUrl();
+        }
 
         return new RankedTrack(
             candidate.source().name(),
@@ -65,11 +75,11 @@ public class RankingService {
             popularity,
             candidate.cached(),
             candidate.source().url(),
-            candidate.source().imageUrl()
+            imageUrl
         );
     }
 
-    private Optional<TrackCacheEntry> resolvePopularity(UserAuth userAuth, String spotifyId) {
+    private Optional<TrackCacheEntry> resolveTrackDetails(UserAuth userAuth, String spotifyId) {
         if (spotifyId == null) {
             return Optional.empty();
         }

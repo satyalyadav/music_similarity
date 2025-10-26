@@ -1,5 +1,0 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import './RecommendationCard.css';
-export function RecommendationCard({ track, onAdd, disabled }) {
-    return (_jsxs("article", { className: "card", children: [_jsx("img", { src: track.imageUrl || `https://via.placeholder.com/180?text=${encodeURIComponent(track.name)}`, alt: `${track.name} cover art`, className: "card__image", loading: "lazy" }), _jsxs("div", { className: "card__content", children: [_jsxs("div", { className: "card__text", children: [_jsx("p", { className: "card__artist", children: track.artist }), _jsx("h3", { children: track.name }), _jsxs("p", { className: "card__score", children: ["score ", track.score.toFixed(2)] })] }), _jsxs("div", { className: "card__actions", children: [_jsx("a", { className: "btn btn--ghost", href: `https://open.spotify.com/track/${track.spotifyId}`, target: "_blank", rel: "noopener noreferrer", children: "Open in Spotify" }), _jsx("button", { className: "btn", disabled: disabled, onClick: () => onAdd(track), children: disabled ? 'Added' : 'Add to queue' })] })] })] }));
-}

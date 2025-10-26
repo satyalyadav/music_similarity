@@ -16,30 +16,37 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import io.github.resilience4j.reactor.retry.RetryOperator;
+import reactor.core.publisher.Mono;
+
 @Component
 public class SpotifyApiClient {
 
     private static final Logger log = LoggerFactory.getLogger(SpotifyApiClient.class);
 
     private final WebClient spotifyWebClient;
+    private final io.github.resilience4j.retry.Retry outboundHttpRetry;
 
-    public SpotifyApiClient(@Qualifier("spotifyApiWebClient") WebClient spotifyWebClient) {
+    public SpotifyApiClient(
+        @Qualifier("spotifyApiWebClient") WebClient spotifyWebClient,
+        @Qualifier("outboundHttpRetry") io.github.resilience4j.retry.Retry outboundHttpRetry
+    ) {
         this.spotifyWebClient = spotifyWebClient;
+        this.outboundHttpRetry = outboundHttpRetry;
     }
 
     public SpotifyUserProfile getCurrentUserProfile(String accessToken) {
-        return spotifyWebClient.get()
+        return execute(spotifyWebClient.get()
             .uri("/me")
             .accept(MediaType.APPLICATION_JSON)
             .headers(headers -> headers.setBearerAuth(accessToken))
             .retrieve()
-            .bodyToMono(SpotifyUserProfile.class)
-            .block();
+            .bodyToMono(SpotifyUserProfile.class));
     }
 
     public List<SeedTrack> getTopTracks(String accessToken, int limit) {
         try {
-            TopTracksResponse response = spotifyWebClient.get()
+            TopTracksResponse response = execute(spotifyWebClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/me/top/tracks")
                     .queryParam("limit", Math.min(limit, 50))
@@ -47,8 +54,7 @@ public class SpotifyApiClient {
                 .accept(MediaType.APPLICATION_JSON)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .retrieve()
-                .bodyToMono(TopTracksResponse.class)
-                .block();
+                .bodyToMono(TopTracksResponse.class));
 
             return extractTracks(response);
         } catch (WebClientResponseException ex) {
@@ -59,15 +65,14 @@ public class SpotifyApiClient {
 
     public SeedTrack getTrack(String accessToken, String trackId) {
         try {
-            SpotifyTrack track = spotifyWebClient.get()
+            SpotifyTrack track = execute(spotifyWebClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/tracks/{id}")
                     .build(trackId))
                 .accept(MediaType.APPLICATION_JSON)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .retrieve()
-                .bodyToMono(SpotifyTrack.class)
-                .block();
+                .bodyToMono(SpotifyTrack.class));
             return mapTrack(track);
         } catch (WebClientResponseException ex) {
             log.debug("Spotify track lookup failed for {}: {}", trackId, ex.getStatusCode());
@@ -77,7 +82,7 @@ public class SpotifyApiClient {
 
     public CreatedPlaylist createPlaylist(String accessToken, String spotifyUserId, String name, boolean isPublic) {
         try {
-            return spotifyWebClient.post()
+            return execute(spotifyWebClient.post()
                 .uri(uriBuilder -> uriBuilder
                     .path("/users/{userId}/playlists")
                     .build(spotifyUserId))
@@ -85,8 +90,7 @@ public class SpotifyApiClient {
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .bodyValue(new CreatePlaylistPayload(name, null, isPublic))
                 .retrieve()
-                .bodyToMono(CreatedPlaylist.class)
-                .block();
+                .bodyToMono(CreatedPlaylist.class));
         } catch (WebClientResponseException ex) {
             log.debug("Spotify create playlist failed: {}", ex.getStatusCode());
             throw ex;
@@ -95,7 +99,7 @@ public class SpotifyApiClient {
 
     public void addTracksToPlaylist(String accessToken, String playlistId, List<String> uris) {
         try {
-            spotifyWebClient.post()
+            executeVoid(spotifyWebClient.post()
                 .uri(uriBuilder -> uriBuilder
                     .path("/playlists/{playlistId}/tracks")
                     .build(playlistId))
@@ -103,8 +107,7 @@ public class SpotifyApiClient {
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .bodyValue(new AddTracksPayload(uris))
                 .retrieve()
-                .bodyToMono(SnapshotResponse.class)
-                .block();
+                .bodyToMono(SnapshotResponse.class));
         } catch (WebClientResponseException ex) {
             log.debug("Spotify add tracks failed for playlist {}: {}", playlistId, ex.getStatusCode());
             throw ex;
@@ -114,7 +117,7 @@ public class SpotifyApiClient {
     public SeedTrack searchTrack(String accessToken, String trackName, String artistName) {
         String query = String.format("track:\"%s\" artist:\"%s\"", trackName, artistName);
         try {
-            SearchResponse response = spotifyWebClient.get()
+            SearchResponse response = execute(spotifyWebClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/search")
                     .queryParam("q", query)
@@ -124,8 +127,7 @@ public class SpotifyApiClient {
                 .accept(MediaType.APPLICATION_JSON)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .retrieve()
-                .bodyToMono(SearchResponse.class)
-                .block();
+                .bodyToMono(SearchResponse.class));
 
             if (response == null || response.tracks() == null || response.tracks().items() == null || response.tracks().items().isEmpty()) {
                 return null;
@@ -139,7 +141,7 @@ public class SpotifyApiClient {
 
     public List<SeedTrack> getRecentlyPlayed(String accessToken, int limit) {
         try {
-            RecentlyPlayedResponse response = spotifyWebClient.get()
+            RecentlyPlayedResponse response = execute(spotifyWebClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/me/player/recently-played")
                     .queryParam("limit", Math.min(limit, 50))
@@ -147,8 +149,7 @@ public class SpotifyApiClient {
                 .accept(MediaType.APPLICATION_JSON)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .retrieve()
-                .bodyToMono(RecentlyPlayedResponse.class)
-                .block();
+                .bodyToMono(RecentlyPlayedResponse.class));
 
             if (response == null) {
                 return List.of();
@@ -267,4 +268,12 @@ public class SpotifyApiClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Tracks(List<SpotifyTrack> items) {}
+
+    private <T> T execute(Mono<T> mono) {
+        return mono.transformDeferred(RetryOperator.of(outboundHttpRetry)).block();
+    }
+
+    private void executeVoid(Mono<?> mono) {
+        mono.transformDeferred(RetryOperator.of(outboundHttpRetry)).then().block();
+    }
 }

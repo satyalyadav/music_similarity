@@ -21,7 +21,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.retry.Retry;
 
 @Component
 public class LastFmClient {
@@ -31,15 +34,21 @@ public class LastFmClient {
     private final WebClient lastFmWebClient;
     private final LastFmProperties properties;
     private final RateLimiter lastFmRateLimiter;
+    private final Retry metadataRetry;
+    private final CircuitBreaker lastFmCircuitBreaker;
 
     public LastFmClient(
         @Qualifier("lastFmWebClient") WebClient lastFmWebClient,
         LastFmProperties properties,
-        RateLimiter lastFmRateLimiter
+        @Qualifier("lastFmRateLimiter") RateLimiter lastFmRateLimiter,
+        @Qualifier("metadataRetry") Retry metadataRetry,
+        @Qualifier("lastFmCircuitBreaker") CircuitBreaker lastFmCircuitBreaker
     ) {
         this.lastFmWebClient = lastFmWebClient;
         this.properties = properties;
         this.lastFmRateLimiter = lastFmRateLimiter;
+        this.metadataRetry = metadataRetry;
+        this.lastFmCircuitBreaker = lastFmCircuitBreaker;
     }
 
     public List<LastFmTrack> getSimilarTracks(String artist, String track, int limit) {
@@ -109,9 +118,14 @@ public class LastFmClient {
             .retrieve()
             .bodyToMono(clazz)
             .block();
-
         try {
-            return Optional.ofNullable(io.github.resilience4j.ratelimiter.RateLimiter.decorateSupplier(lastFmRateLimiter, supplier).get());
+            Supplier<T> rateLimited = RateLimiter.decorateSupplier(lastFmRateLimiter, supplier);
+            Supplier<T> circuitProtected = CircuitBreaker.decorateSupplier(lastFmCircuitBreaker, rateLimited);
+            Supplier<T> retried = Retry.decorateSupplier(metadataRetry, circuitProtected);
+            return Optional.ofNullable(retried.get());
+        } catch (CallNotPermittedException ex) {
+            log.warn("Last.fm circuit breaker open, skipping {} request", method);
+            return Optional.empty();
         } catch (WebClientResponseException ex) {
             log.warn("Last.fm {} request failed: {} {}", method, ex.getStatusCode(), ex.getResponseBodyAsString());
             return Optional.empty();

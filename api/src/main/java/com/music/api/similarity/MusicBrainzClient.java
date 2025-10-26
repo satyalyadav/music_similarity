@@ -15,20 +15,31 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.retry.Retry;
+
 @Component
 public class MusicBrainzClient {
 
     private static final Logger log = LoggerFactory.getLogger(MusicBrainzClient.class);
 
     private final WebClient musicBrainzWebClient;
-    private final io.github.resilience4j.ratelimiter.RateLimiter musicBrainzRateLimiter;
+    private final RateLimiter musicBrainzRateLimiter;
+    private final Retry metadataRetry;
+    private final CircuitBreaker musicBrainzCircuitBreaker;
 
     public MusicBrainzClient(
         @Qualifier("musicBrainzWebClient") WebClient musicBrainzWebClient,
-        io.github.resilience4j.ratelimiter.RateLimiter musicBrainzRateLimiter
+        @Qualifier("musicBrainzRateLimiter") RateLimiter musicBrainzRateLimiter,
+        @Qualifier("metadataRetry") Retry metadataRetry,
+        @Qualifier("musicBrainzCircuitBreaker") CircuitBreaker musicBrainzCircuitBreaker
     ) {
         this.musicBrainzWebClient = musicBrainzWebClient;
         this.musicBrainzRateLimiter = musicBrainzRateLimiter;
+        this.metadataRetry = metadataRetry;
+        this.musicBrainzCircuitBreaker = musicBrainzCircuitBreaker;
     }
 
     public List<String> fetchArtistTags(String artistName) {
@@ -50,7 +61,10 @@ public class MusicBrainzClient {
             .block();
 
         try {
-            ArtistSearchResponse response = io.github.resilience4j.ratelimiter.RateLimiter.decorateSupplier(musicBrainzRateLimiter, supplier).get();
+            java.util.function.Supplier<ArtistSearchResponse> rateLimited = RateLimiter.decorateSupplier(musicBrainzRateLimiter, supplier);
+            java.util.function.Supplier<ArtistSearchResponse> circuitProtected = CircuitBreaker.decorateSupplier(musicBrainzCircuitBreaker, rateLimited);
+            java.util.function.Supplier<ArtistSearchResponse> retried = Retry.decorateSupplier(metadataRetry, circuitProtected);
+            ArtistSearchResponse response = retried.get();
 
             if (response == null || response.artists() == null || response.artists().isEmpty()) {
                 return List.of();
@@ -67,6 +81,9 @@ public class MusicBrainzClient {
                 .filter(tag -> tag != null && !tag.isBlank())
                 .limit(20)
                 .collect(Collectors.toList());
+        } catch (CallNotPermittedException ex) {
+            log.warn("MusicBrainz circuit breaker open, skipping tag lookup for {}", artistName);
+            return Collections.emptyList();
         } catch (WebClientResponseException ex) {
             log.warn("MusicBrainz tag fetch failed for {}: {} {}", artistName, ex.getStatusCode(), ex.getResponseBodyAsString());
             return Collections.emptyList();

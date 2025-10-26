@@ -8,6 +8,7 @@ interface Props {
 }
 
 export function RecommendationCard({ track, onAdd, disabled }: Props) {
+
   return (
     <article className="card">
       <img

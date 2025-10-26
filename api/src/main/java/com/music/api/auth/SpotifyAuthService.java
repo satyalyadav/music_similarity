@@ -33,7 +33,8 @@ public class SpotifyAuthService {
         "user-top-read",
         "user-read-recently-played",
         "playlist-modify-public",
-        "playlist-modify-private"
+        "playlist-modify-private",
+        "user-read-email"
     );
 
     private final SpotifyOAuthProperties properties;
