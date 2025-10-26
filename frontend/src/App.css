@@ -40,6 +40,16 @@ header h1 {
   gap: 1.5rem;
 }
 
+.field-with-action {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.field-with-action input {
+  flex: 1;
+}
+
 label {
   font-weight: 600;
   display: flex;
@@ -71,6 +81,33 @@ input:focus {
   border: none;
   cursor: pointer;
   font-weight: 600;
+}
+
+.secondary {
+  border-radius: 999px;
+  border: 1px solid #cbd5f5;
+  background: #f8fafc;
+  padding: 0.65rem 1.25rem;
+  color: #312e81;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.secondary:hover {
+  background: #eef2ff;
+  border-color: #a5b4fc;
+}
+
+.form-hint {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin-top: 0.35rem;
+  display: block;
+}
+
+.form-hint--success {
+  color: #16a34a;
 }
 
 .alert {

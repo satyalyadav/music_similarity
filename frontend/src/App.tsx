@@ -1,9 +1,17 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { API_BASE_URL, RECOMMENDATION_LIMIT } from './config';
 import { RecommendationCard } from './components/RecommendationCard';
 import { QueuePanel } from './components/QueuePanel';
 import { PlaylistResponse, RecommendationResponse, RecommendationTrackView } from './types';
 import './App.css';
+
+type StoredAuth = {
+  userId: string;
+  displayName?: string | null;
+  spotifyId?: string | null;
+};
+
+const STORAGE_KEY = 'music-similarity-auth';
 
 const defaultPlaylistName = () => `AI Recs ${new Date().toLocaleDateString()}`;
 
@@ -18,6 +26,7 @@ function App() {
 
   const [seedMeta, setSeedMeta] = useState<RecommendationResponse['seed'] | null>(null);
   const [strategy, setStrategy] = useState('');
+  const [userProfile, setUserProfile] = useState<{ displayName?: string | null; spotifyId?: string | null } | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [playlistSaving, setPlaylistSaving] = useState(false);
@@ -26,11 +35,56 @@ function App() {
 
   const queueIds = useMemo(() => new Set(queue.map((track) => track.spotifyId)), [queue]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const userIdParam = params.get('userId');
+    if (userIdParam) {
+      const payload: StoredAuth = {
+        userId: userIdParam,
+        displayName: params.get('displayName'),
+        spotifyId: params.get('spotifyId')
+      };
+      setUserId(payload.userId);
+      setUserProfile({ displayName: payload.displayName, spotifyId: payload.spotifyId });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      ['userId', 'displayName', 'spotifyId'].forEach((key) => params.delete(key));
+      const search = params.toString();
+      const newUrl = `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`;
+      window.history.replaceState(null, '', newUrl);
+      return;
+    }
+    const cached = localStorage.getItem(STORAGE_KEY);
+    if (cached) {
+      try {
+        const parsed: StoredAuth = JSON.parse(cached);
+        if (parsed.userId) {
+          setUserId(parsed.userId);
+          setUserProfile({ displayName: parsed.displayName, spotifyId: parsed.spotifyId });
+        }
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+    const payload: StoredAuth = {
+      userId,
+      displayName: userProfile?.displayName ?? null,
+      spotifyId: userProfile?.spotifyId ?? null
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  }, [userId, userProfile]);
+
   async function handleFetch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSuccess(null);
     if (!userId.trim()) {
-      setError('User ID is required (grab it from the auth callback).');
+      setError('User ID is required. Click Connect Spotify first.');
       return;
     }
     if (!seedInput.trim()) {
@@ -73,6 +127,12 @@ function App() {
 
   function removeFromQueue(spotifyId: string) {
     setQueue((prev) => prev.filter((track) => track.spotifyId !== spotifyId));
+  }
+
+  function handleConnectSpotify() {
+    const redirectTarget = `${window.location.origin}${window.location.pathname}`;
+    const loginUrl = `${API_BASE_URL}/auth/login?redirect=${encodeURIComponent(redirectTarget)}`;
+    window.location.href = loginUrl;
   }
 
   async function handleSavePlaylist() {
@@ -128,12 +188,24 @@ function App() {
           <form className="form" onSubmit={handleFetch}>
             <label>
               User ID
-              <input
-                type="text"
-                placeholder="UUID from /auth/callback"
-                value={userId}
-                onChange={(event) => setUserId(event.target.value)}
-              />
+              <div className="field-with-action">
+                <input
+                  type="text"
+                  placeholder="Auto-filled after Spotify login"
+                  value={userId}
+                  onChange={(event) => setUserId(event.target.value)}
+                />
+                <button type="button" className="secondary" onClick={handleConnectSpotify}>
+                  {userId ? 'Reconnect' : 'Connect Spotify'}
+                </button>
+              </div>
+              <span className="form-hint">We will drop your user ID in here after you authorize Spotify.</span>
+              {userProfile?.displayName && (
+                <span className="form-hint form-hint--success">
+                  Connected as {userProfile.displayName}
+                  {userProfile.spotifyId ? ` (${userProfile.spotifyId})` : ''}
+                </span>
+              )}
             </label>
 
             <label>

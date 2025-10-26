@@ -1,5 +1,6 @@
 package com.music.api.web;
 
+import java.net.URI;
 import java.util.Optional;
 
 import org.springframework.http.HttpHeaders;
@@ -8,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.music.api.auth.SpotifyAuthService;
 import com.music.api.auth.SpotifyAuthService.AuthResult;
@@ -33,11 +35,15 @@ public class AuthController {
     }
 
     @GetMapping("/auth/callback")
-    public ResponseEntity<AuthCallbackResponse> callback(
+    public ResponseEntity<?> callback(
         @RequestParam("code") String code,
         @RequestParam("state") String state
     ) {
         AuthResult result = spotifyAuthService.completeAuthorization(code, state);
+        Optional<ResponseEntity<?>> redirectResponse = buildRedirectResponse(result);
+        if (redirectResponse.isPresent()) {
+            return redirectResponse.get();
+        }
         AuthCallbackResponse body = new AuthCallbackResponse(
             result.userId(),
             result.profile().id(),
@@ -45,5 +51,23 @@ public class AuthController {
             result.redirectUri()
         );
         return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(body);
+    }
+
+    private Optional<ResponseEntity<?>> buildRedirectResponse(AuthResult result) {
+        if (result.redirectUri() == null || result.redirectUri().isBlank()) {
+            return Optional.empty();
+        }
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(result.redirectUri())
+            .queryParam("userId", result.userId())
+            .queryParam("spotifyId", result.profile().id());
+        if (result.profile().displayName() != null && !result.profile().displayName().isBlank()) {
+            builder.queryParam("displayName", result.profile().displayName());
+        }
+        URI redirectLocation = builder.build(false).toUri();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setLocation(redirectLocation);
+        headers.setCacheControl("no-store");
+        return Optional.of(ResponseEntity.status(HttpStatus.FOUND).headers(headers).build());
     }
 }
