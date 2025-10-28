@@ -1,5 +1,5 @@
 services:
-  postgres:
+  db:
     image: postgres:16-alpine
     container_name: music_postgres
     environment:
@@ -16,6 +16,31 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  api:
+    build:
+      context: ./api
+    env_file:
+      - ./.env
+      - ./api/.env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/musicdb
+      SPRING_DATASOURCE_USERNAME: music
+      SPRING_DATASOURCE_PASSWORD: music123
+    depends_on:
+      - db
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8080
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
 
 volumes:
   postgres-data:

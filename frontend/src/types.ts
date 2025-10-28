@@ -27,3 +27,7 @@ export interface PlaylistResponse {
   spotifyUrl?: string;
   tracksAdded: number;
 }
+
+export interface SeedsResponse {
+  items: SeedTrackView[];
+}

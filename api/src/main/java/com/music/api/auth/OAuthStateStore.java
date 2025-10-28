@@ -7,9 +7,12 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
+
+import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 
 @Component
 public class OAuthStateStore {
@@ -18,11 +21,15 @@ public class OAuthStateStore {
     private final SecureRandom secureRandom = new SecureRandom();
     private final Map<String, OAuthState> cache = new ConcurrentHashMap<>();
 
-    public OAuthState create(String redirectUri) {
+    public OAuthState create(String redirectUri, Function<String, OAuth2AuthorizationRequest> requestFactory) {
         Assert.hasText(redirectUri, "redirectUri must not be blank");
+        Assert.notNull(requestFactory, "requestFactory must not be null");
         removeExpiredEntries();
         String state = generateStateToken();
-        OAuthState entry = new OAuthState(state, redirectUri, Instant.now().plus(DEFAULT_TTL));
+        OAuth2AuthorizationRequest authorizationRequest = requestFactory.apply(state);
+        Assert.notNull(authorizationRequest, "authorizationRequest must not be null");
+        Assert.hasText(authorizationRequest.getState(), "authorizationRequest.state must not be blank");
+        OAuthState entry = new OAuthState(state, redirectUri, Instant.now().plus(DEFAULT_TTL), authorizationRequest);
         cache.put(state, entry);
         return entry;
     }
@@ -52,5 +59,5 @@ public class OAuthStateStore {
         cache.entrySet().removeIf(entry -> entry.getValue().expiresAt().isBefore(now));
     }
 
-    public record OAuthState(String value, String redirectUri, Instant expiresAt) {}
+    public record OAuthState(String value, String redirectUri, Instant expiresAt, OAuth2AuthorizationRequest authorizationRequest) {}
 }

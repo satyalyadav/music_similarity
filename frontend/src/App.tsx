@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { API_BASE_URL, RECOMMENDATION_LIMIT } from './config';
 import { RecommendationCard } from './components/RecommendationCard';
 import { QueuePanel } from './components/QueuePanel';
-import { PlaylistResponse, RecommendationResponse, RecommendationTrackView } from './types';
+import { PlaylistResponse, RecommendationResponse, RecommendationTrackView, SeedTrackView, SeedsResponse } from './types';
 import './App.css';
 
 type StoredAuth = {
@@ -27,6 +27,8 @@ function App() {
   const [seedMeta, setSeedMeta] = useState<RecommendationResponse['seed'] | null>(null);
   const [strategy, setStrategy] = useState('');
   const [userProfile, setUserProfile] = useState<{ displayName?: string | null; spotifyId?: string | null } | null>(null);
+  const [seedCandidates, setSeedCandidates] = useState<SeedTrackView[]>([]);
+  const [seedLoading, setSeedLoading] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [playlistSaving, setPlaylistSaving] = useState(false);
@@ -70,6 +72,7 @@ function App() {
   useEffect(() => {
     if (!userId) {
       localStorage.removeItem(STORAGE_KEY);
+      setSeedCandidates([]);
       return;
     }
     const payload: StoredAuth = {
@@ -110,6 +113,7 @@ function App() {
       setSeedMeta(payload.seed);
       setStrategy(payload.strategy);
       setQueue([]);
+      setSeedCandidates([]);
       setSuccess(`Loaded ${payload.items.length} recommendations`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load recommendations');
@@ -133,6 +137,38 @@ function App() {
     const redirectTarget = `${window.location.origin}${window.location.pathname}`;
     const loginUrl = `${API_BASE_URL}/auth/login?redirect=${encodeURIComponent(redirectTarget)}`;
     window.location.href = loginUrl;
+  }
+
+  async function handleFetchSeeds() {
+    setSuccess(null);
+    if (!userId.trim()) {
+      setError('User ID is required. Click Connect Spotify first.');
+      return;
+    }
+    setError(null);
+    setSeedLoading(true);
+    try {
+      const params = new URLSearchParams({ userId: userId.trim(), limit: '20' });
+      const response = await fetch(`${API_BASE_URL}/me/seeds?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`Seeds API returned ${response.status}`);
+      }
+      const payload: SeedsResponse = await response.json();
+      setSeedCandidates(payload.items);
+      if (payload.items.length === 0) {
+        setError('Spotify did not return any seed candidates. Try again later.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to fetch seed tracks');
+    } finally {
+      setSeedLoading(false);
+    }
+  }
+
+  function handleSelectSeed(track: SeedTrackView) {
+    setSeedInput(track.id);
+    setError(null);
+    setSuccess(`Seed ready: ${track.name} — ${track.artist}`);
   }
 
   async function handleSavePlaylist() {
@@ -216,6 +252,11 @@ function App() {
                 value={seedInput}
                 onChange={(event) => setSeedInput(event.target.value)}
               />
+              <div className="seed-actions">
+                <button type="button" className="secondary" onClick={handleFetchSeeds} disabled={seedLoading}>
+                  {seedLoading ? 'Loading top tracks…' : 'Use my top tracks'}
+                </button>
+              </div>
             </label>
 
             <label>
@@ -236,6 +277,34 @@ function App() {
 
           {error && <p className="alert alert--error">{error}</p>}
           {success && <p className="alert alert--success">{success}</p>}
+
+          {seedCandidates.length > 0 && (
+            <div className="seed-picker">
+              <p className="eyebrow">Pick a seed from your Spotify profile</p>
+              <p className="seed-picker__hint">We fetched your top and recent tracks. Choose one to populate the seed field.</p>
+              <div className="seed-picker__grid">
+                {seedCandidates.map((track) => (
+                  <button
+                    type="button"
+                    key={track.id}
+                    className="seed-card"
+                    onClick={() => handleSelectSeed(track)}
+                  >
+                    <img
+                      src={track.imageUrl || `https://via.placeholder.com/120?text=${encodeURIComponent(track.name)}`}
+                      alt={track.name}
+                      className="seed-card__art"
+                      loading="lazy"
+                    />
+                    <div className="seed-card__body">
+                      <span className="seed-card__title">{track.name}</span>
+                      <span className="seed-card__subtitle">{track.artist}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {seedMeta && (
             <div className="seed-meta">
