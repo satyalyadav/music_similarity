@@ -22,7 +22,7 @@ public class TrackCacheRepository {
 
     public Optional<TrackCacheEntry> findFresh(String spotifyId) {
         String sql = """
-            SELECT spotify_id, name, artist, album, popularity, image_url, cached_at
+            SELECT spotify_id, name, artist, album, popularity, image_url, isrc, cached_at
             FROM track_cache
             WHERE spotify_id = :spotifyId
             """;
@@ -39,6 +39,7 @@ public class TrackCacheRepository {
                 rs.getString("album"),
                 rs.getInt("popularity"),
                 rs.getString("image_url"),
+                rs.getString("isrc"),
                 cachedAt
             );
         }).stream().filter(entry -> entry != null).findFirst();
@@ -46,10 +47,10 @@ public class TrackCacheRepository {
 
     public void upsert(TrackCacheEntry entry) {
         String sql = """
-            INSERT INTO track_cache (spotify_id, name, artist, album, popularity, image_url, cached_at)
-            VALUES (:spotifyId, :name, :artist, :album, :popularity, :imageUrl, NOW())
+            INSERT INTO track_cache (spotify_id, name, artist, album, popularity, image_url, isrc, cached_at)
+            VALUES (:spotifyId, :name, :artist, :album, :popularity, :imageUrl, :isrc, NOW())
             ON CONFLICT (spotify_id)
-            DO UPDATE SET name = :name, artist = :artist, album = :album, popularity = :popularity, image_url = :imageUrl, cached_at = NOW()
+            DO UPDATE SET name = :name, artist = :artist, album = :album, popularity = :popularity, image_url = :imageUrl, isrc = :isrc, cached_at = NOW()
             """;
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("spotifyId", entry.spotifyId())
@@ -57,7 +58,8 @@ public class TrackCacheRepository {
             .addValue("artist", entry.artist())
             .addValue("album", entry.album())
             .addValue("popularity", entry.popularity())
-            .addValue("imageUrl", entry.imageUrl());
+            .addValue("imageUrl", entry.imageUrl())
+            .addValue("isrc", entry.isrc());
         jdbcTemplate.update(sql, params);
     }
 
@@ -72,6 +74,7 @@ public class TrackCacheRepository {
         String album,
         Integer popularity,
         String imageUrl,
+        String isrc,
         Instant cachedAt
     ) {}
 }

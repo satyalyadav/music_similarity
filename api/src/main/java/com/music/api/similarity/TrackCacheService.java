@@ -1,6 +1,7 @@
 package com.music.api.similarity;
 
 import java.util.Optional;
+import java.time.Instant;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +48,23 @@ public class TrackCacheService {
         return cached;
     }
 
+    public void cacheSeedTrack(SeedTrack track) {
+        if (track == null || track.id() == null) {
+            return;
+        }
+        TrackCacheEntry entry = new TrackCacheEntry(
+            track.id(),
+            track.name(),
+            track.artist(),
+            track.album(),
+            track.popularity(),
+            track.imageUrl(),
+            track.isrc(),
+            Instant.now()
+        );
+        repository.upsert(entry);
+    }
+
     private boolean hasCompleteMetadata(TrackCacheEntry entry) {
         return entry.imageUrl() != null && !entry.imageUrl().isBlank();
     }
@@ -61,7 +79,8 @@ public class TrackCacheService {
                 track.album(),
                 track.popularity(),
                 track.imageUrl(),
-                java.time.Instant.now()
+                track.isrc(),
+                Instant.now()
             );
             repository.upsert(entry);
             return Optional.of(entry);

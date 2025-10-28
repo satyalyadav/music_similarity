@@ -185,8 +185,9 @@ public class SpotifyApiClient {
             : track.artists().get(0).name();
         String albumName = track.album() != null ? track.album().name() : null;
         String imageUrl = extractLargestImage(track.album() != null ? track.album().images() : null);
-        String spotifyUrl = track.externalUrls() != null ? track.externalUrls().spotify() : null;
-        return new SeedTrack(track.id(), track.name(), artist, albumName, imageUrl, spotifyUrl, track.popularity());
+    String spotifyUrl = track.externalUrls() != null ? track.externalUrls().spotify() : null;
+    String isrc = track.externalIds() != null ? track.externalIds().isrc() : null;
+    return new SeedTrack(track.id(), track.name(), artist, albumName, imageUrl, spotifyUrl, track.popularity(), isrc);
     }
 
     private String extractLargestImage(List<SpotifyImage> images) {
@@ -217,6 +218,7 @@ public class SpotifyApiClient {
         List<SpotifyArtist> artists,
         SpotifyAlbum album,
         @JsonProperty("external_urls") SpotifyExternalUrls externalUrls,
+        @JsonProperty("external_ids") SpotifyExternalIds externalIds,
         Integer popularity
     ) {}
 
@@ -235,6 +237,9 @@ public class SpotifyApiClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SpotifyExternalUrls(String spotify) {}
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SpotifyExternalIds(String isrc) {}
+
     public record SeedTrack(
         String id,
         String name,
@@ -242,7 +247,8 @@ public class SpotifyApiClient {
         String album,
         String imageUrl,
         String spotifyUrl,
-        Integer popularity
+        Integer popularity,
+        String isrc
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)

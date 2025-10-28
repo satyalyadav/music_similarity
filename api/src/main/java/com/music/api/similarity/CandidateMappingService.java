@@ -1,8 +1,11 @@
 package com.music.api.similarity;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +16,7 @@ import com.music.api.auth.SpotifyAuthService;
 import com.music.api.auth.UserAuth;
 import com.music.api.similarity.IdMapRepository.IdMapEntry;
 import com.music.api.similarity.LastFmClient.LastFmTrack;
+import com.music.api.similarity.TrackCacheRepository.TrackCacheEntry;
 import com.music.api.spotify.SpotifyApiClient;
 import com.music.api.spotify.SpotifyApiClient.SeedTrack;
 
@@ -24,15 +28,18 @@ public class CandidateMappingService {
     private final IdMapRepository idMapRepository;
     private final SpotifyApiClient spotifyApiClient;
     private final SpotifyAuthService spotifyAuthService;
+    private final TrackCacheService trackCacheService;
 
     public CandidateMappingService(
         IdMapRepository idMapRepository,
         SpotifyApiClient spotifyApiClient,
-        SpotifyAuthService spotifyAuthService
+        SpotifyAuthService spotifyAuthService,
+        TrackCacheService trackCacheService
     ) {
         this.idMapRepository = idMapRepository;
         this.spotifyApiClient = spotifyApiClient;
         this.spotifyAuthService = spotifyAuthService;
+        this.trackCacheService = trackCacheService;
     }
 
     public List<MappedTrack> mapCandidates(UserAuth userAuth, List<LastFmTrack> candidates, int desiredCount) {
@@ -46,6 +53,7 @@ public class CandidateMappingService {
         UserAuth currentAuth = userAuth;
         int processed = 0;
         int mappedWithSpotify = 0;
+        Set<String> dedupeKeys = new LinkedHashSet<>();
 
         for (LastFmTrack candidate : candidates) {
             if (processed >= processingBudget) {
@@ -53,33 +61,66 @@ public class CandidateMappingService {
             }
             processed++;
 
-            String key = SimilarityKeys.normalize(candidate.artist(), candidate.name());
+            String normalizedKey = SimilarityKeys.normalize(candidate.artist(), candidate.name());
 
-            Optional<IdMapEntry> cached = idMapRepository.findFresh(key);
+            Optional<IdMapEntry> cached = idMapRepository.findFresh(normalizedKey);
             MappedTrack mappedTrack;
             if (cached.isPresent()) {
                 IdMapEntry entry = cached.get();
                 double confidence = entry.confidence() != null ? entry.confidence() : 1.0;
-                mappedTrack = new MappedTrack(candidate, entry.spotifyId(), confidence, true, null);
+                Optional<TrackCacheEntry> cachedTrack = trackCacheService.getTrack(currentAuth, entry.spotifyId());
+                String dedupeKey = buildDedupeKey(
+                    cachedTrack.map(TrackCacheEntry::isrc).orElse(null),
+                    cachedTrack.map(TrackCacheEntry::artist).orElse(candidate.artist()),
+                    cachedTrack.map(TrackCacheEntry::name).orElse(candidate.name())
+                );
+                if (!dedupeKeys.add(dedupeKey)) {
+                    continue;
+                }
+                mappedTrack = new MappedTrack(
+                    candidate,
+                    entry.spotifyId(),
+                    confidence,
+                    true,
+                    cachedTrack.map(TrackCacheEntry::imageUrl).orElse(null),
+                    cachedTrack.map(TrackCacheEntry::isrc).orElse(null)
+                );
             } else {
                 SearchResult searchResult = performSearch(currentAuth, candidate);
                 if (searchResult != null) {
                     currentAuth = searchResult.userAuth();
                     if (searchResult.track() != null) {
                         double confidence = candidate.matchScore() > 0 ? candidate.matchScore() : 1.0;
-                        idMapRepository.upsert(key, searchResult.track().id(), confidence);
+                        SeedTrack track = searchResult.track();
+                        idMapRepository.upsert(normalizedKey, track.id(), confidence);
+                        buildIsrcKey(track.isrc()).ifPresent(isrcKey -> idMapRepository.upsert(isrcKey, track.id(), confidence));
+                        trackCacheService.cacheSeedTrack(track);
+
+                        String dedupeKey = buildDedupeKey(track.isrc(), track.artist(), track.name());
+                        if (!dedupeKeys.add(dedupeKey)) {
+                            continue;
+                        }
                         mappedTrack = new MappedTrack(
                             candidate,
-                            searchResult.track().id(),
+                            track.id(),
                             confidence,
                             false,
-                            searchResult.track().imageUrl()
+                            track.imageUrl(),
+                            track.isrc()
                         );
                     } else {
-                        mappedTrack = new MappedTrack(candidate, null, 0.0, false, null);
+                        String dedupeKey = buildDedupeKey(null, candidate.artist(), candidate.name());
+                        if (!dedupeKeys.add(dedupeKey)) {
+                            continue;
+                        }
+                        mappedTrack = new MappedTrack(candidate, null, 0.0, false, null, null);
                     }
                 } else {
-                    mappedTrack = new MappedTrack(candidate, null, 0.0, false, null);
+                    String dedupeKey = buildDedupeKey(null, candidate.artist(), candidate.name());
+                    if (!dedupeKeys.add(dedupeKey)) {
+                        continue;
+                    }
+                    mappedTrack = new MappedTrack(candidate, null, 0.0, false, null, null);
                 }
             }
 
@@ -118,8 +159,24 @@ public class CandidateMappingService {
         String spotifyId,
         double confidence,
         boolean cached,
-        String spotifyImageUrl
+        String spotifyImageUrl,
+        String isrc
     ) {}
 
     private record SearchResult(SeedTrack track, UserAuth userAuth) {}
+
+    private String buildDedupeKey(String isrc, String artist, String track) {
+        return buildIsrcKey(isrc).orElse("name:" + SimilarityKeys.normalize(artist, track));
+    }
+
+    private Optional<String> buildIsrcKey(String isrc) {
+        if (isrc == null) {
+            return Optional.empty();
+        }
+        String trimmed = isrc.trim();
+        if (trimmed.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of("isrc:" + trimmed.toUpperCase(Locale.ROOT));
+    }
 }

@@ -1,7 +1,9 @@
 package com.music.api.similarity;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -15,7 +17,9 @@ import com.music.api.similarity.TrackCacheRepository.TrackCacheEntry;
 @Service
 public class RankingService {
 
+    private static final double BASE_WEIGHT = 0.7;
     private static final double TAG_WEIGHT = 0.2;
+    private static final double POPULARITY_WEIGHT = 0.1;
 
     private final ArtistTagService artistTagService;
     private final TrackCacheService trackCacheService;
@@ -31,8 +35,16 @@ public class RankingService {
     public List<RankedTrack> rank(UserAuth userAuth, String seedArtist, List<MappedTrack> candidates) {
         Set<String> seedTags = artistTagService.getTags(seedArtist);
 
-        return candidates.stream()
-            .map(candidate -> mapToRanked(userAuth, candidate, seedTags))
+        List<CandidateContext> contexts = candidates.stream()
+            .map(candidate -> buildContext(userAuth, candidate, seedTags))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(ArrayList::new));
+
+        double meanPopularity = calculateMeanPopularity(contexts);
+        double stdPopularity = calculateStdPopularity(contexts, meanPopularity);
+
+        return contexts.stream()
+            .map(ctx -> toRankedTrack(ctx, meanPopularity, stdPopularity))
             .sorted(Comparator
                 .comparing(RankedTrack::score).reversed()
                 .thenComparing(RankedTrack::popularity, Comparator.nullsLast(Comparator.reverseOrder()))
@@ -40,15 +52,12 @@ public class RankingService {
             .collect(Collectors.toList());
     }
 
-    private RankedTrack mapToRanked(UserAuth userAuth, MappedTrack candidate, Set<String> seedTags) {
-        double baseScore = candidate.source().matchScore();
-        if (baseScore <= 0) {
-            baseScore = 0.4;
-        }
+    private CandidateContext buildContext(UserAuth userAuth, MappedTrack candidate, Set<String> seedTags) {
+        double rawMatch = candidate.source().matchScore();
+        double baseSimilarity = rawMatch > 0 ? rawMatch : 0.4;
 
         Set<String> candidateTags = artistTagService.getTags(candidate.source().artist());
         double tagOverlap = artistTagService.jaccard(seedTags, candidateTags);
-        double compositeScore = baseScore + (TAG_WEIGHT * tagOverlap);
 
         Optional<TrackCacheEntry> cachedTrack = resolveTrackDetails(userAuth, candidate.spotifyId());
 
@@ -64,12 +73,10 @@ public class RankingService {
             imageUrl = candidate.source().imageUrl();
         }
 
-        return new RankedTrack(
-            candidate.source().name(),
-            candidate.source().artist(),
-            candidate.spotifyId(),
-            compositeScore,
-            candidate.source().matchScore(),
+        return new CandidateContext(
+            candidate,
+            baseSimilarity,
+            rawMatch,
             tagOverlap,
             candidate.confidence(),
             popularity,
@@ -86,6 +93,50 @@ public class RankingService {
         return trackCacheService.getTrack(userAuth, spotifyId);
     }
 
+    private RankedTrack toRankedTrack(CandidateContext context, double meanPopularity, double stdPopularity) {
+        double popularityZ = 0.0;
+        if (context.popularity() != null && stdPopularity > 0.0) {
+            popularityZ = (context.popularity() - meanPopularity) / stdPopularity;
+        }
+
+        double compositeScore = BASE_WEIGHT * context.baseSimilarity()
+            + TAG_WEIGHT * context.tagOverlap()
+            + POPULARITY_WEIGHT * popularityZ;
+
+        return new RankedTrack(
+            context.candidate().source().name(),
+            context.candidate().source().artist(),
+            context.candidate().spotifyId(),
+            compositeScore,
+            context.rawMatch(),
+            context.tagOverlap(),
+            context.confidence(),
+            context.popularity(),
+            context.cached(),
+            context.lastFmUrl(),
+            context.imageUrl()
+        );
+    }
+
+    private double calculateMeanPopularity(List<CandidateContext> contexts) {
+        return contexts.stream()
+            .map(CandidateContext::popularity)
+            .filter(Objects::nonNull)
+            .mapToDouble(Integer::doubleValue)
+            .average()
+            .orElse(0.0);
+    }
+
+    private double calculateStdPopularity(List<CandidateContext> contexts, double meanPopularity) {
+        double variance = contexts.stream()
+            .map(CandidateContext::popularity)
+            .filter(Objects::nonNull)
+            .mapToDouble(pop -> Math.pow(pop - meanPopularity, 2))
+            .average()
+            .orElse(0.0);
+        return Math.sqrt(variance);
+    }
+
     public record RankedTrack(
         String name,
         String artist,
@@ -99,4 +150,17 @@ public class RankingService {
         String lastFmUrl,
         String imageUrl
     ) {}
+
+    private record CandidateContext(
+        MappedTrack candidate,
+        double baseSimilarity,
+        double rawMatch,
+        double tagOverlap,
+        double confidence,
+        Integer popularity,
+        boolean cached,
+        String lastFmUrl,
+        String imageUrl
+    ) {}
+
 }
