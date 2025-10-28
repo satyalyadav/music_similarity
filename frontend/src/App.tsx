@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { API_BASE_URL, RECOMMENDATION_LIMIT } from './config';
 import { RecommendationCard } from './components/RecommendationCard';
 import { QueuePanel } from './components/QueuePanel';
+import { useSpotifyPlayback } from './hooks/useSpotifyPlayback';
 import { PlaylistResponse, RecommendationResponse, RecommendationTrackView, SeedTrackView, SeedsResponse } from './types';
 import './App.css';
 
@@ -9,6 +10,7 @@ type StoredAuth = {
   userId: string;
   displayName?: string | null;
   spotifyId?: string | null;
+  product?: string | null;
 };
 
 const STORAGE_KEY = 'music-similarity-auth';
@@ -26,8 +28,10 @@ function App() {
 
   const [seedMeta, setSeedMeta] = useState<RecommendationResponse['seed'] | null>(null);
   const [strategy, setStrategy] = useState('');
-  const [userProfile, setUserProfile] = useState<{ displayName?: string | null; spotifyId?: string | null } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ displayName?: string | null; spotifyId?: string | null; product?: string | null } | null>(null);
   const [seedCandidates, setSeedCandidates] = useState<SeedTrackView[]>([]);
+  const [playbackEnabled, setPlaybackEnabled] = useState(false);
+  const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
   const [seedLoading, setSeedLoading] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -36,6 +40,30 @@ function App() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const queueIds = useMemo(() => new Set(queue.map((track) => track.spotifyId)), [queue]);
+  const playback = useSpotifyPlayback({ enabled: playbackEnabled, userId: userId ? userId : null });
+  const canUsePlayback = playbackEnabled && playback.status === 'ready';
+  const playbackToggleDisabled = !userId || playback.status === 'loading';
+  const playbackStatusMessage = useMemo(() => {
+    if (!userId) {
+      return 'Connect Spotify to enable playback.';
+    }
+    if (playback.error) {
+      return playback.error;
+    }
+    switch (playback.status) {
+      case 'needs-user':
+        return 'Connect Spotify to enable playback.';
+      case 'loading':
+        return 'Connecting to the Spotify player…';
+      case 'ready':
+        return 'Player ready. Press play on any track below.';
+      case 'error':
+        return 'Playback unavailable at the moment.';
+      case 'disabled':
+      default:
+        return 'Toggle playback to listen without leaving the page.';
+    }
+  }, [userId, playback.status, playback.error]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -44,12 +72,13 @@ function App() {
       const payload: StoredAuth = {
         userId: userIdParam,
         displayName: params.get('displayName'),
-        spotifyId: params.get('spotifyId')
+        spotifyId: params.get('spotifyId'),
+        product: params.get('product')
       };
       setUserId(payload.userId);
-      setUserProfile({ displayName: payload.displayName, spotifyId: payload.spotifyId });
+      setUserProfile({ displayName: payload.displayName, spotifyId: payload.spotifyId, product: payload.product });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-      ['userId', 'displayName', 'spotifyId'].forEach((key) => params.delete(key));
+      ['userId', 'displayName', 'spotifyId', 'product'].forEach((key) => params.delete(key));
       const search = params.toString();
       const newUrl = `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`;
       window.history.replaceState(null, '', newUrl);
@@ -61,7 +90,7 @@ function App() {
         const parsed: StoredAuth = JSON.parse(cached);
         if (parsed.userId) {
           setUserId(parsed.userId);
-          setUserProfile({ displayName: parsed.displayName, spotifyId: parsed.spotifyId });
+          setUserProfile({ displayName: parsed.displayName, spotifyId: parsed.spotifyId, product: parsed.product });
         }
       } catch {
         localStorage.removeItem(STORAGE_KEY);
@@ -73,15 +102,44 @@ function App() {
     if (!userId) {
       localStorage.removeItem(STORAGE_KEY);
       setSeedCandidates([]);
+      setPlaybackEnabled(false);
       return;
     }
     const payload: StoredAuth = {
       userId,
       displayName: userProfile?.displayName ?? null,
-      spotifyId: userProfile?.spotifyId ?? null
+      spotifyId: userProfile?.spotifyId ?? null,
+      product: userProfile?.product ?? null
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }, [userId, userProfile]);
+
+  useEffect(() => {
+    if (!playbackEnabled) {
+      setPlayingTrackId(null);
+    }
+  }, [playbackEnabled]);
+
+  useEffect(() => {
+    if (playback.status !== 'ready') {
+      setPlayingTrackId(null);
+    }
+  }, [playback.status]);
+
+  useEffect(() => {
+    if (!playback.product) {
+      return;
+    }
+    setUserProfile((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      if (prev.product === playback.product) {
+        return prev;
+      }
+      return { ...prev, product: playback.product };
+    });
+  }, [playback.product]);
 
   async function handleFetch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -131,6 +189,36 @@ function App() {
 
   function removeFromQueue(spotifyId: string) {
     setQueue((prev) => prev.filter((track) => track.spotifyId !== spotifyId));
+  }
+
+  function handlePlaybackToggle(next: boolean) {
+    setSuccess(null);
+    setError(null);
+    setPlaybackEnabled(next);
+  }
+
+  async function handlePlayTrack(track: RecommendationTrackView) {
+    if (!playbackEnabled) {
+      setError('Enable playback to listen without leaving the page.');
+      return;
+    }
+    if (!canUsePlayback) {
+      setError('Playback is not ready yet. Wait a moment and try again.');
+      return;
+    }
+    setSuccess(null);
+    try {
+      setError(null);
+      if (playingTrackId === track.spotifyId) {
+        await playback.pause();
+        setPlayingTrackId(null);
+      } else {
+        await playback.play(track.spotifyId);
+        setPlayingTrackId(track.spotifyId);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to control playback');
+    }
   }
 
   function handleConnectSpotify() {
@@ -275,6 +363,19 @@ function App() {
             </button>
           </form>
 
+          <div className="playback-panel">
+            <label className="toggle playback-toggle">
+              <input
+                type="checkbox"
+                checked={playbackEnabled}
+                disabled={playbackToggleDisabled}
+                onChange={(event) => handlePlaybackToggle(event.target.checked)}
+              />
+              <span>Play recommendations here (Spotify Premium required)</span>
+            </label>
+            <p className="form-hint">{playbackStatusMessage}</p>
+          </div>
+
           {error && <p className="alert alert--error">{error}</p>}
           {success && <p className="alert alert--success">{success}</p>}
 
@@ -335,6 +436,9 @@ function App() {
                 track={track}
                 onAdd={addToQueue}
                 disabled={queueIds.has(track.spotifyId)}
+                onPlay={() => handlePlayTrack(track)}
+                playDisabled={!canUsePlayback}
+                isPlaying={playingTrackId === track.spotifyId}
               />
             ))}
           </div>

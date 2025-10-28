@@ -48,6 +48,7 @@ public class AuthController {
             result.userId(),
             result.profile().id(),
             result.profile().displayName(),
+            result.profile().product(),
             result.redirectUri()
         );
         return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(body);
@@ -62,6 +63,9 @@ public class AuthController {
             .queryParam("spotifyId", result.profile().id());
         if (result.profile().displayName() != null && !result.profile().displayName().isBlank()) {
             builder.queryParam("displayName", result.profile().displayName());
+        }
+        if (result.profile().product() != null && !result.profile().product().isBlank()) {
+            builder.queryParam("product", result.profile().product());
         }
         URI redirectLocation = builder.build(false).toUri();
 

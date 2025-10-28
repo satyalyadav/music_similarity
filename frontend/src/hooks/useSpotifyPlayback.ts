@@ -33,6 +33,7 @@ interface SpotifyNamespace {
 export interface SpotifyPlaybackHandle {
   status: PlaybackStatus;
   error: string | null;
+  product: string | null;
   play: (spotifyTrackId: string) => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
@@ -70,11 +71,18 @@ function loadSdk(): Promise<void> {
   return loadingPromise;
 }
 
-type PlaybackTokenResponse = { accessToken: string };
+type PlaybackTokenResponse = {
+  eligible: boolean;
+  premium?: boolean | null;
+  product?: string | null;
+  missingScopes?: string[];
+  accessToken?: string | null;
+};
 
 export function useSpotifyPlayback({ enabled, userId }: UseSpotifyPlaybackOptions): SpotifyPlaybackHandle {
   const [status, setStatus] = useState<PlaybackStatus>('disabled');
   const [error, setError] = useState<string | null>(null);
+  const [product, setProduct] = useState<string | null>(null);
   const playerRef = useRef<SpotifyPlayer | null>(null);
   const deviceIdRef = useRef<string | null>(null);
 
@@ -94,11 +102,19 @@ export function useSpotifyPlayback({ enabled, userId }: UseSpotifyPlaybackOption
           detail = bodyText;
         }
       }
+      setProduct(null);
       throw new Error(detail);
     }
     const payload: PlaybackTokenResponse = await response.json();
-    if (!payload.accessToken) {
-      throw new Error('Playback token payload missing accessToken');
+    setProduct(payload.product ?? null);
+    if (!payload.eligible || !payload.accessToken) {
+      if (payload.premium === false) {
+        throw new Error('Spotify Premium is required for Web Playback.');
+      }
+      if (payload.missingScopes && payload.missingScopes.length > 0) {
+        throw new Error(`Reauthorize Spotify to grant: ${payload.missingScopes.join(', ')}`);
+      }
+      throw new Error('Playback not available for this account. Try reconnecting Spotify.');
     }
     return payload.accessToken;
   }, [userId]);
@@ -107,6 +123,9 @@ export function useSpotifyPlayback({ enabled, userId }: UseSpotifyPlaybackOption
     if (!enabled) {
       setStatus('disabled');
       setError(null);
+      if (!userId) {
+        setProduct(null);
+      }
       if (playerRef.current) {
         playerRef.current.disconnect();
         playerRef.current = null;
@@ -116,6 +135,7 @@ export function useSpotifyPlayback({ enabled, userId }: UseSpotifyPlaybackOption
     }
     if (!userId) {
       setStatus('needs-user');
+      setProduct(null);
       return;
     }
 
@@ -266,6 +286,7 @@ export function useSpotifyPlayback({ enabled, userId }: UseSpotifyPlaybackOption
   return {
     status,
     error,
+    product,
     play,
     pause,
     resume,

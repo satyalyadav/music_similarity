@@ -5,9 +5,12 @@ interface Props {
   track: RecommendationTrackView;
   onAdd: (track: RecommendationTrackView) => void;
   disabled?: boolean;
+  onPlay?: (track: RecommendationTrackView) => void;
+  playDisabled?: boolean;
+  isPlaying?: boolean;
 }
 
-export function RecommendationCard({ track, onAdd, disabled }: Props) {
+export function RecommendationCard({ track, onAdd, disabled, onPlay, playDisabled, isPlaying }: Props) {
 
   return (
     <article className="card">
@@ -24,6 +27,11 @@ export function RecommendationCard({ track, onAdd, disabled }: Props) {
           <p className="card__score">score {track.score.toFixed(2)}</p>
         </div>
         <div className="card__actions">
+          {onPlay && (
+            <button type="button" className="btn" disabled={playDisabled} onClick={() => onPlay(track)}>
+              {isPlaying ? 'Pause' : 'Play'}
+            </button>
+          )}
           <a
             className="btn btn--ghost"
             href={`https://open.spotify.com/track/${track.spotifyId}`}
@@ -32,7 +40,7 @@ export function RecommendationCard({ track, onAdd, disabled }: Props) {
           >
             Open in Spotify
           </a>
-          <button className="btn" disabled={disabled} onClick={() => onAdd(track)}>
+          <button type="button" className="btn" disabled={disabled} onClick={() => onAdd(track)}>
             {disabled ? 'Added' : 'Add to queue'}
           </button>
         </div>

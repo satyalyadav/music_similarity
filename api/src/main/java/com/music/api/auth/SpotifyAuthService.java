@@ -44,7 +44,11 @@ public class SpotifyAuthService {
         "user-top-read",
         "user-read-recently-played",
         "playlist-modify-public",
-        "playlist-modify-private"
+        "playlist-modify-private",
+        "user-read-private",
+        "user-read-playback-state",
+        "user-modify-playback-state",
+        "streaming"
     );
 
     private final OAuthStateStore stateStore;
@@ -64,7 +68,7 @@ public class SpotifyAuthService {
         this.spotifyAccountsClient = spotifyAccountsClient;
         this.spotifyApiClient = spotifyApiClient;
         this.userAuthRepository = userAuthRepository;
-        ClientRegistration registration = clientRegistrationRepository.findByRegistrationId("spotify");
+    ClientRegistration registration = clientRegistrationRepository.findByRegistrationId("spotify");
         Assert.notNull(registration, "Spotify client registration must be configured");
         Assert.isTrue(AuthorizationGrantType.AUTHORIZATION_CODE.equals(registration.getAuthorizationGrantType()),
             "Spotify registration must use authorization_code grant type");
@@ -205,11 +209,12 @@ public class SpotifyAuthService {
     }
 
     private Set<String> resolveScopes() {
-        Set<String> scopes = clientRegistration.getScopes();
-        if (scopes == null || scopes.isEmpty()) {
-            return REQUIRED_SCOPES;
+        java.util.LinkedHashSet<String> merged = new java.util.LinkedHashSet<>(REQUIRED_SCOPES);
+        Set<String> configured = clientRegistration.getScopes();
+        if (configured != null) {
+            merged.addAll(configured);
         }
-        return scopes;
+        return Set.copyOf(merged);
     }
 
     private TokenResponse requestToken(MultiValueMap<String, String> form) {
