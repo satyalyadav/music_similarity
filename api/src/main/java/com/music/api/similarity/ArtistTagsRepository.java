@@ -56,4 +56,9 @@ public class ArtistTagsRepository {
             """;
         jdbcTemplate.update(sql, Map.of("artistName", artistName));
     }
+
+    public int purgeExpired() {
+        String sql = "DELETE FROM artist_tags WHERE cached_at < NOW() - INTERVAL '30 days'";
+        return jdbcTemplate.update(sql, new MapSqlParameterSource());
+    }
 }

@@ -45,6 +45,7 @@ build/
 # Environment / secrets
 api/.env
 .env
+api/src/main/resources/application-dev.properties
 
 # OS files
 .DS_Store

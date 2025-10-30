@@ -65,4 +65,9 @@ public class IdMapRepository {
     }
 
     public record IdMapEntry(String spotifyId, Double confidence, Instant cachedAt) {}
+
+    public int purgeExpired() {
+        String sql = "DELETE FROM id_map WHERE cached_at < NOW() - INTERVAL '7 days'";
+        return jdbcTemplate.update(sql, new MapSqlParameterSource());
+    }
 }

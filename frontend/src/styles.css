@@ -1,5 +1,6 @@
 :root {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
   color: #111827;
   background-color: #f8fafc;
 }
@@ -18,6 +19,7 @@ button {
   font: inherit;
 }
 
-input, textarea {
+input,
+textarea {
   font: inherit;
 }

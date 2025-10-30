@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { SpotifyPlaybackHandle } from '../hooks/useSpotifyPlayback';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { SpotifyPlaybackHandle } from "../hooks/useSpotifyPlayback";
 
 function formatTime(ms?: number): string {
-  if (ms == null || !Number.isFinite(ms)) return '0:00';
+  if (ms == null || !Number.isFinite(ms)) return "0:00";
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 interface PlayerProps {
@@ -37,11 +37,11 @@ export function Player({ playback, onTogglePlay }: PlayerProps) {
       // Commit with last value when pointer is released anywhere
       handleSeekCommit(value);
     }
-    window.addEventListener('mouseup', handleGlobalUp);
-    window.addEventListener('touchend', handleGlobalUp);
+    window.addEventListener("mouseup", handleGlobalUp);
+    window.addEventListener("touchend", handleGlobalUp);
     return () => {
-      window.removeEventListener('mouseup', handleGlobalUp);
-      window.removeEventListener('touchend', handleGlobalUp);
+      window.removeEventListener("mouseup", handleGlobalUp);
+      window.removeEventListener("touchend", handleGlobalUp);
     };
   }, [duration]);
 
@@ -79,7 +79,7 @@ export function Player({ playback, onTogglePlay }: PlayerProps) {
   const isPaused = !!playback.paused;
 
   const fallbackArt = useMemo(() => {
-    const title = (playback.track?.name || 'Track').slice(0, 12);
+    const title = (playback.track?.name || "Track").slice(0, 12);
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>
   <defs>
@@ -89,7 +89,10 @@ export function Player({ playback, onTogglePlay }: PlayerProps) {
     </linearGradient>
   </defs>
   <rect width='100%' height='100%' rx='6' fill='url(#g)'/>
-  <text x='50%' y='52%' dominant-baseline='middle' text-anchor='middle' fill='#e5e7eb' font-family='sans-serif' font-size='10'>${title.replace(/&/g, '&amp;')}</text>
+  <text x='50%' y='52%' dominant-baseline='middle' text-anchor='middle' fill='#e5e7eb' font-family='sans-serif' font-size='10'>${title.replace(
+    /&/g,
+    "&amp;"
+  )}</text>
   <circle cx='12' cy='12' r='4' fill='#6366f1'/>
   <rect x='10' y='28' width='44' height='6' rx='3' fill='#374151'/>
   <rect x='10' y='40' width='36' height='6' rx='3' fill='#4b5563'/>
@@ -103,26 +106,28 @@ export function Player({ playback, onTogglePlay }: PlayerProps) {
         <img
           className="player__art"
           src={playback.track?.imageUrl || fallbackArt}
-          alt={playback.track?.name || 'Track art'}
+          alt={playback.track?.name || "Track art"}
           onError={(e) => {
             (e.currentTarget as HTMLImageElement).src = fallbackArt;
           }}
         />
         <div className="player__titles">
-          <div className="player__title">{playback.track?.name || '—'}</div>
-          <div className="player__subtitle">{playback.track?.artist || ''}</div>
+          <div className="player__title">{playback.track?.name || "—"}</div>
+          <div className="player__subtitle">{playback.track?.artist || ""}</div>
         </div>
       </div>
-      
+
       <div className="player__center">
         <div className="player__control-row">
           <button
-            className={`player__play ${isPaused ? 'player__play--primary' : 'player__play--secondary'}`}
+            className={`player__play ${
+              isPaused ? "player__play--primary" : "player__play--secondary"
+            }`}
             onClick={onTogglePlay}
-            disabled={playback.status !== 'ready'}
-            aria-label={isPaused ? 'Play' : 'Pause'}
+            disabled={playback.status !== "ready"}
+            aria-label={isPaused ? "Play" : "Pause"}
           >
-            {isPaused ? '▶' : '❚❚'}
+            {isPaused ? "▶" : "❚❚"}
           </button>
         </div>
         <div className="player__progress">
@@ -134,16 +139,22 @@ export function Player({ playback, onTogglePlay }: PlayerProps) {
             max={100}
             step={0.1}
             value={progress}
-            style={{ ['--progress' as any]: `${progress}%` }}
+            style={{ ["--progress" as any]: `${progress}%` }}
             onPointerDown={(e) => {
               if (!canSeek) return;
-              (e.currentTarget as HTMLInputElement).setPointerCapture?.(e.pointerId);
+              (e.currentTarget as HTMLInputElement).setPointerCapture?.(
+                e.pointerId
+              );
               scrubbingRef.current = true;
               setIsScrubbing(true);
             }}
             onChange={(e) => handleSeekChange(Number(e.target.value))}
-            onPointerUp={(e) => handleSeekCommit(Number((e.target as HTMLInputElement).value))}
-            onPointerCancel={(e) => handleSeekCommit(Number((e.target as HTMLInputElement).value))}
+            onPointerUp={(e) =>
+              handleSeekCommit(Number((e.target as HTMLInputElement).value))
+            }
+            onPointerCancel={(e) =>
+              handleSeekCommit(Number((e.target as HTMLInputElement).value))
+            }
             onPointerLeave={(e) => {
               if (scrubbingRef.current) {
                 handleSeekCommit(Number((e.target as HTMLInputElement).value));

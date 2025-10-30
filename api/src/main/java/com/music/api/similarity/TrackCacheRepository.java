@@ -67,6 +67,11 @@ public class TrackCacheRepository {
         jdbcTemplate.update("DELETE FROM track_cache WHERE spotify_id = :spotifyId", Map.of("spotifyId", spotifyId));
     }
 
+    public int purgeExpired() {
+        String sql = "DELETE FROM track_cache WHERE cached_at < NOW() - INTERVAL '7 days'";
+        return jdbcTemplate.update(sql, new MapSqlParameterSource());
+    }
+
     public record TrackCacheEntry(
         String spotifyId,
         String name,

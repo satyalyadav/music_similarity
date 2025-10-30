@@ -1,5 +1,5 @@
-import { RecommendationTrackView } from '../types';
-import './RecommendationCard.css';
+import { RecommendationTrackView } from "../types";
+import "./RecommendationCard.css";
 
 interface Props {
   track: RecommendationTrackView;
@@ -10,12 +10,23 @@ interface Props {
   isPlaying?: boolean;
 }
 
-export function RecommendationCard({ track, onAdd, disabled, onPlay, playDisabled, isPlaying }: Props) {
-
+export function RecommendationCard({
+  track,
+  onAdd,
+  disabled,
+  onPlay,
+  playDisabled,
+  isPlaying,
+}: Props) {
   return (
     <article className="card">
       <img
-        src={track.imageUrl || `https://via.placeholder.com/180?text=${encodeURIComponent(track.name)}`}
+        src={
+          track.imageUrl ||
+          `https://via.placeholder.com/180?text=${encodeURIComponent(
+            track.name
+          )}`
+        }
         alt={`${track.name} cover art`}
         className="card__image"
         loading="lazy"
@@ -28,8 +39,13 @@ export function RecommendationCard({ track, onAdd, disabled, onPlay, playDisable
         </div>
         <div className="card__actions">
           {onPlay && (
-            <button type="button" className="btn" disabled={playDisabled} onClick={() => onPlay(track)}>
-              {isPlaying ? 'Pause' : 'Play'}
+            <button
+              type="button"
+              className="btn"
+              disabled={playDisabled}
+              onClick={() => onPlay(track)}
+            >
+              {isPlaying ? "Pause" : "Play"}
             </button>
           )}
           <a
@@ -40,8 +56,13 @@ export function RecommendationCard({ track, onAdd, disabled, onPlay, playDisable
           >
             Open in Spotify
           </a>
-          <button type="button" className="btn" disabled={disabled} onClick={() => onAdd(track)}>
-            {disabled ? 'Added' : 'Add to queue'}
+          <button
+            type="button"
+            className="btn"
+            disabled={disabled}
+            onClick={() => onAdd(track)}
+          >
+            {disabled ? "Added" : "Add to queue"}
           </button>
         </div>
       </div>
