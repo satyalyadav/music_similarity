@@ -1,5 +1,7 @@
 # Music Similarity Studio
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 This is a simple app that came from the idea of finding music using a single song you like a lot. It uses Spotify and Last.fm to try and come up with songs similar to your favorite song. It is is a pretty simple app right now but it could be developed into more to find even more authentic recommendations. I might deploy it to a service. I am looking at ways to take Spotify login out of this so users can use it without logging in. Enjoy!
 
 ## Stack
@@ -39,4 +41,4 @@ Open the app at http://localhost:5173
 Click “Connect Spotify” and complete OAuth. Spotify Premium is required for in‑browser playback.
 
 ## License
-MIT
+MIT — see [LICENSE](./LICENSE)
