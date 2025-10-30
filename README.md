@@ -1,6 +1,6 @@
 # Music Similarity Studio
 
-Find Spotify recommendations using Last.fm + Spotify signals and listen inline with the Spotify Web Playback SDK.
+This is a simple app that came from the idea of finding music using a single song you like a lot. It uses Spotify and Last.fm to try and come up with songs similar to your favorite song. It is is a pretty simple app right now but it could be developed into more to find even more authentic recommendations. I might deploy it to a service. I am looking at ways to take Spotify login out of this so users can use it without logging in. Enjoy!
 
 ## Stack
 - Frontend: Vite + React + TypeScript
