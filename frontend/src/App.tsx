@@ -5,6 +5,7 @@ import { QueuePanel } from './components/QueuePanel';
 import { useSpotifyPlayback } from './hooks/useSpotifyPlayback';
 import { PlaylistResponse, RecommendationResponse, RecommendationTrackView, SeedTrackView, SeedsResponse } from './types';
 import './App.css';
+import { Player } from './components/Player';
 
 type StoredAuth = {
   userId: string;
@@ -462,6 +463,27 @@ function App() {
           </aside>
         </section>
       </main>
+
+      {playbackEnabled && playback.status === 'ready' && (
+        <div className="player-bar">
+          <Player
+            playback={playback}
+            onTogglePlay={async () => {
+              try {
+                if (playingTrackId) {
+                  if (playback.paused) {
+                    await playback.resume();
+                  } else {
+                    await playback.pause();
+                  }
+                }
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Unable to control playback');
+              }
+            }}
+          />
+        </div>
+      )}
 
     </div>
   );
