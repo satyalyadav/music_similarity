@@ -1,7 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL, RECOMMENDATION_LIMIT } from "./config";
-import { RecommendationCard } from "./components/RecommendationCard";
-import { QueuePanel } from "./components/QueuePanel";
 import { useSpotifyPlayback } from "./hooks/useSpotifyPlayback";
 import {
   PlaylistResponse,
@@ -10,14 +8,25 @@ import {
   SeedTrackView,
   SeedsResponse,
 } from "./types";
-import "./App.css";
-import { Player } from "./components/Player";
+import { AuthSection } from "./components/AuthSection";
+import { SeedSelector } from "./components/SeedSelector";
+import { SeedDisplay } from "./components/SeedDisplay";
+import { RecommendationControls } from "./components/RecommendationControls";
+import { RecommendationsGrid } from "./components/RecommendationsGrid";
+import { QueuePanel } from "./components/QueuePanel";
+import { PlayerBar } from "./components/PlayerBar";
+import { PlaybackToggle } from "./components/PlaybackToggle";
+import { Alert, AlertDescription } from "./components/ui/alert";
+import { Music2, CheckCircle2, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+import { Toaster } from "./components/ui/sonner";
 
 type StoredAuth = {
   userId: string;
   displayName?: string | null;
   spotifyId?: string | null;
   product?: string | null;
+  imageUrl?: string | null;
 };
 
 const STORAGE_KEY = "music-similarity-auth";
@@ -43,6 +52,7 @@ function App() {
     displayName?: string | null;
     spotifyId?: string | null;
     product?: string | null;
+    imageUrl?: string | null;
   } | null>(null);
   const [seedCandidates, setSeedCandidates] = useState<SeedTrackView[]>([]);
   const [playbackEnabled, setPlaybackEnabled] = useState(false);
@@ -53,7 +63,9 @@ function App() {
   const [playlistSaving, setPlaylistSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(null);
+  const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(
+    null
+  );
 
   const queueIds = useMemo(
     () => new Set(queue.map((track) => track.spotifyId)),
@@ -67,30 +79,13 @@ function App() {
     () => (queue.length ? queue.map((t) => t.spotifyId).join(",") : ""),
     [queue]
   );
-  const playlistDirty = queue.length > 0 && queueSignature !== lastSavedSignature;
+  const playlistDirty =
+    queue.length > 0 && queueSignature !== lastSavedSignature;
   const canUsePlayback = playbackEnabled && playback.status === "ready";
   const playbackToggleDisabled = !userId || playback.status === "loading";
-  const playbackStatusMessage = useMemo(() => {
-    if (!userId) {
-      return "Connect Spotify to enable playback.";
-    }
-    if (playback.error) {
-      return playback.error;
-    }
-    switch (playback.status) {
-      case "needs-user":
-        return "Connect Spotify to enable playback.";
-      case "loading":
-        return "Connecting to the Spotify player…";
-      case "ready":
-        return "Player ready. Press play on any track below.";
-      case "error":
-        return "Playback unavailable at the moment.";
-      case "disabled":
-      default:
-        return "Toggle playback to listen without leaving the page.";
-    }
-  }, [userId, playback.status, playback.error]);
+  const isConnected = !!userId;
+  const isPremium =
+    userProfile?.product === "Premium" || playback.product === "Premium";
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -101,16 +96,18 @@ function App() {
         displayName: params.get("displayName"),
         spotifyId: params.get("spotifyId"),
         product: params.get("product"),
+        imageUrl: params.get("imageUrl"),
       };
       setUserId(payload.userId);
       setUserProfile({
         displayName: payload.displayName,
         spotifyId: payload.spotifyId,
         product: payload.product,
+        imageUrl: payload.imageUrl,
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-      ["userId", "displayName", "spotifyId", "product"].forEach((key) =>
-        params.delete(key)
+      ["userId", "displayName", "spotifyId", "product", "imageUrl"].forEach(
+        (key) => params.delete(key)
       );
       const search = params.toString();
       const newUrl = `${window.location.pathname}${search ? `?${search}` : ""}${
@@ -129,6 +126,7 @@ function App() {
             displayName: parsed.displayName,
             spotifyId: parsed.spotifyId,
             product: parsed.product,
+            imageUrl: parsed.imageUrl,
           });
         }
       } catch {
@@ -149,6 +147,7 @@ function App() {
       displayName: userProfile?.displayName ?? null,
       spotifyId: userProfile?.spotifyId ?? null,
       product: userProfile?.product ?? null,
+      imageUrl: userProfile?.imageUrl ?? null,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }, [userId, userProfile]);
@@ -185,10 +184,12 @@ function App() {
     setSuccess(null);
     if (!userId.trim()) {
       setError("User ID is required. Click Connect Spotify first.");
+      toast.error("User ID is required. Click Connect Spotify first.");
       return;
     }
     if (!seedInput.trim()) {
       setError("Paste a Spotify track ID or URL to continue.");
+      toast.error("Paste a Spotify track ID or URL to continue.");
       return;
     }
 
@@ -214,10 +215,12 @@ function App() {
       setQueue([]);
       setSeedCandidates([]);
       setSuccess(`Loaded ${payload.items.length} recommendations`);
+      toast.success(`Loaded ${payload.items.length} recommendations`);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to load recommendations"
-      );
+      const errorMessage =
+        err instanceof Error ? err.message : "Unable to load recommendations";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -229,6 +232,7 @@ function App() {
     }
     setQueue((prev) => [...prev, track]);
     setSuccess(null);
+    toast.success(`Added "${track.name}" to queue`);
   }
 
   function removeFromQueue(spotifyId: string) {
@@ -245,10 +249,12 @@ function App() {
   async function handlePlayTrack(track: RecommendationTrackView) {
     if (!playbackEnabled) {
       setError("Enable playback to listen without leaving the page.");
+      toast.error("Enable playback to listen without leaving the page.");
       return;
     }
     if (!canUsePlayback) {
       setError("Playback is not ready yet. Wait a moment and try again.");
+      toast.error("Playback is not ready yet. Wait a moment and try again.");
       return;
     }
     setSuccess(null);
@@ -262,9 +268,10 @@ function App() {
         setPlayingTrackId(track.spotifyId);
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to control playback"
-      );
+      const errorMessage =
+        err instanceof Error ? err.message : "Unable to control playback";
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   }
 
@@ -276,10 +283,23 @@ function App() {
     window.location.href = loginUrl;
   }
 
+  function handleDisconnectSpotify() {
+    setUserId("");
+    setUserProfile(null);
+    setPlaybackEnabled(false);
+    setSeedCandidates([]);
+    setRecommendations([]);
+    setQueue([]);
+    setSeedMeta(null);
+    setPlayingTrackId(null);
+    toast.success("Disconnected from Spotify");
+  }
+
   async function handleFetchSeeds() {
     setSuccess(null);
     if (!userId.trim()) {
       setError("User ID is required. Click Connect Spotify first.");
+      toast.error("User ID is required. Click Connect Spotify first.");
       return;
     }
     setError(null);
@@ -301,11 +321,17 @@ function App() {
         setError(
           "Spotify did not return any seed candidates. Try again later."
         );
+        toast.error(
+          "Spotify did not return any seed candidates. Try again later."
+        );
+      } else {
+        toast.success(`Loaded ${payload.items.length} seed tracks`);
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to fetch seed tracks"
-      );
+      const errorMessage =
+        err instanceof Error ? err.message : "Unable to fetch seed tracks";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSeedLoading(false);
     }
@@ -315,19 +341,23 @@ function App() {
     setSeedInput(track.id);
     setError(null);
     setSuccess(`Seed ready: ${track.name} — ${track.artist}`);
+    toast.success(`Selected: ${track.name}`);
   }
 
   async function handleSavePlaylist() {
     if (!userId.trim()) {
       setError("User ID is required to save playlists.");
+      toast.error("User ID is required to save playlists.");
       return;
     }
     if (queue.length === 0) {
       setError("Add at least one track to the queue.");
+      toast.error("Add at least one track to the queue.");
       return;
     }
     if (!playlistDirty) {
       setError("No changes to save.");
+      toast.error("No changes to save.");
       return;
     }
     setPlaylistSaving(true);
@@ -349,241 +379,318 @@ function App() {
         throw new Error(`Playlist API returned ${response.status}`);
       }
       const payload: PlaylistResponse = await response.json();
-      setSuccess(`Playlist saved! ${payload.spotifyUrl ?? ""}`.trim());
+      const successMessage = `Playlist saved! ${
+        payload.spotifyUrl ?? ""
+      }`.trim();
+      setSuccess(successMessage);
       setLastSavedSignature(queueSignature);
+      toast.success("Playlist saved to Spotify!");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save playlist");
+      const errorMessage =
+        err instanceof Error ? err.message : "Unable to save playlist";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setPlaylistSaving(false);
     }
   }
 
+  async function handleTogglePlay() {
+    try {
+      if (playingTrackId) {
+        if (playback.paused) {
+          await playback.resume();
+        } else {
+          await playback.pause();
+        }
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Unable to control playback";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    }
+  }
+
   return (
-    <div className="app-shell">
-      <header>
-        <div>
-          <p className="eyebrow">Music Similarity Studio</p>
-          <h1>Paste a track. Get instant vibes.</h1>
-          <p className="subtitle">
-            We call Last.fm + Spotify for you. Queue your favorite matches and
-            save them as a playlist in two clicks.
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50">
+      <Toaster />
+
+      {/* Header */}
+      <header className="border-b border-gray-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-screen-2xl mx-auto px-6 py-8 relative overflow-hidden">
+          {/* Decorative background elements */}
+          <div
+            className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-10 blur-3xl"
+            style={{ background: "var(--spotify-green)" }}
+          />
+          <div className="absolute bottom-0 left-20 w-48 h-48 bg-emerald-400 rounded-full opacity-10 blur-3xl" />
+
+          <div className="relative z-10">
+            <div className="flex items-start justify-between gap-6 mb-4">
+              <div className="flex items-center gap-4">
+                <div className="relative group">
+                  <div
+                    className="absolute inset-0 rounded-2xl opacity-20 blur-xl group-hover:blur-2xl transition-all duration-300"
+                    style={{ background: "var(--spotify-green)" }}
+                  />
+                  <div
+                    className="relative p-3 rounded-2xl shadow-xl group-hover:scale-110 transition-transform duration-300"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, var(--spotify-green), var(--spotify-green-light))",
+                    }}
+                  >
+                    <Music2
+                      className="w-8 h-8 text-white animate-pulse"
+                      style={{ animationDuration: "3s" }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h1 className="text-gray-900 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent font-bold text-2xl">
+                      Music Similarity Studio
+                    </h1>
+                    <div
+                      className="px-3 py-1 rounded-full text-xs"
+                      style={{
+                        background: "rgba(29, 185, 84, 0.15)",
+                        color: "var(--spotify-green-dark)",
+                      }}
+                    >
+                      Powered by Spotify
+                    </div>
+                  </div>
+                  <p className="text-gray-500 text-sm italic">
+                    Your personal music discovery engine
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-6">
+              <div className="flex-1 space-y-2">
+                <p className="text-xl text-gray-700">
+                  <span className="inline-block mr-2">🎵</span>
+                  <span className="font-medium bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    Paste a track. Get instant vibes.
+                  </span>
+                </p>
+                <p className="text-sm text-gray-500 max-w-2xl leading-relaxed">
+                  Powered by Last.fm similarity data and Spotify's catalog.
+                  Simply drop in a track, discover perfectly matched songs,
+                  build your queue, and save as a playlist in seconds.
+                </p>
+              </div>
+
+              {/* Musical note decorations */}
+              <div
+                className="hidden lg:flex items-center gap-8 opacity-30"
+                style={{ columnGap: "3.5rem" }}
+              >
+                <span
+                  className="text-gray-400"
+                  style={{
+                    fontSize: "2rem",
+                    animation: "bounce 2s ease-in-out infinite",
+                    animationDelay: "0s",
+                    display: "inline-block",
+                    marginRight: "1.5rem",
+                  }}
+                >
+                  ♪
+                </span>
+                <span
+                  className="text-gray-400"
+                  style={{
+                    fontSize: "1.75rem",
+                    animation: "bounce 2s ease-in-out infinite",
+                    animationDelay: "0.3s",
+                    display: "inline-block",
+                    marginRight: "1.5rem",
+                  }}
+                >
+                  ♫
+                </span>
+                <span
+                  className="text-gray-400"
+                  style={{
+                    fontSize: "2rem",
+                    animation: "bounce 2s ease-in-out infinite",
+                    animationDelay: "0.6s",
+                    display: "inline-block",
+                  }}
+                >
+                  ♪
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
-      <main>
-        <section className="panel">
-          <form className="form" onSubmit={handleFetch}>
-            <label>
-              User ID
-              <div className="field-with-action">
-                <input
-                  type="text"
-                  placeholder="Auto-filled after Spotify login"
-                  value={userId}
-                  onChange={(event) => setUserId(event.target.value)}
-                />
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={handleConnectSpotify}
-                >
-                  {userId ? "Reconnect" : "Connect Spotify"}
-                </button>
-              </div>
-              <span className="form-hint">
-                We will drop your user ID in here after you authorize Spotify.
-              </span>
-              {userProfile?.displayName && (
-                <span className="form-hint form-hint--success">
-                  Connected as {userProfile.displayName}
-                  {userProfile.spotifyId ? ` (${userProfile.spotifyId})` : ""}
-                </span>
-              )}
-            </label>
+      {/* Main Content */}
+      <main className="max-w-screen-2xl mx-auto px-6 py-8 pb-32">
+        <div className="grid lg:grid-cols-[1fr_380px] gap-8">
+          {/* Left Column */}
+          <div className="space-y-6">
+            {/* Auth */}
+            <AuthSection
+              isConnected={isConnected}
+              user={userProfile}
+              onConnect={handleConnectSpotify}
+              onDisconnect={handleDisconnectSpotify}
+            />
 
-            <label>
-              Spotify track link or ID
-              <input
-                type="text"
-                placeholder="https://open.spotify.com/track/..."
-                value={seedInput}
-                onChange={(event) => setSeedInput(event.target.value)}
-              />
-              <div className="seed-actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={handleFetchSeeds}
-                  disabled={seedLoading}
-                >
-                  {seedLoading ? "Loading top tracks…" : "Use my top tracks"}
-                </button>
-              </div>
-            </label>
-
-            <label>
-              How many recs?
-              <input
-                type="number"
-                min={5}
-                max={50}
-                value={limit}
-                onChange={(event) => setLimit(Number(event.target.value))}
-              />
-            </label>
-
-            <button type="submit" className="primary" disabled={loading}>
-              {loading ? "Fetching..." : "Get recommendations"}
-            </button>
-          </form>
-
-          <div className="playback-panel">
-            <label className="toggle playback-toggle">
-              <input
-                type="checkbox"
-                checked={playbackEnabled}
-                disabled={playbackToggleDisabled}
-                onChange={(event) => handlePlaybackToggle(event.target.checked)}
-              />
-              <span>Play recommendations here (Spotify Premium required)</span>
-            </label>
-            <p className="form-hint">{playbackStatusMessage}</p>
-          </div>
-
-          {error && <p className="alert alert--error">{error}</p>}
-          {success && <p className="alert alert--success">{success}</p>}
-
-          {seedCandidates.length > 0 && (
-            <div className="seed-picker">
-              <p className="eyebrow">Pick a seed from your Spotify profile</p>
-              <p className="seed-picker__hint">
-                We fetched your top and recent tracks. Choose one to populate
-                the seed field.
-              </p>
-              <div className="seed-picker__grid">
-                {seedCandidates.map((track) => (
-                  <button
-                    type="button"
-                    key={track.id}
-                    className="seed-card"
-                    onClick={() => handleSelectSeed(track)}
-                  >
-                    <img
-                      src={
-                        track.imageUrl ||
-                        `https://via.placeholder.com/120?text=${encodeURIComponent(
-                          track.name
-                        )}`
-                      }
-                      alt={track.name}
-                      className="seed-card__art"
-                      loading="lazy"
-                    />
-                    <div className="seed-card__body">
-                      <span className="seed-card__title">{track.name}</span>
-                      <span className="seed-card__subtitle">
-                        {track.artist}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {seedMeta && (
-            <div className="seed-meta">
-              <img
-                src={
-                  seedMeta.imageUrl ||
-                  `https://via.placeholder.com/220?text=${encodeURIComponent(
-                    seedMeta.name
-                  )}`
-                }
-                alt={`${seedMeta.name} cover art`}
-                className="seed-meta__art"
-                loading="lazy"
-              />
-              <div className="seed-meta__content">
-                <p className="eyebrow">Seed track</p>
-                <h2>{seedMeta.name}</h2>
-                <p className="subtitle">{seedMeta.artist}</p>
-                {strategy && (
-                  <p className="seed-meta__strategy">Strategy: {strategy}</p>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="layout">
-          <div className="recommendations">
-            {recommendations.length === 0 && (
-              <p className="placeholder">
-                Run a recommendation to see top matches.
-              </p>
-            )}
-            {recommendations.map((track) => (
-              <RecommendationCard
-                key={track.spotifyId}
-                track={track}
-                onAdd={addToQueue}
-                disabled={queueIds.has(track.spotifyId)}
-                onPlay={() => handlePlayTrack(track)}
-                playDisabled={!canUsePlayback}
-                isPlaying={playingTrackId === track.spotifyId}
-              />
-            ))}
-          </div>
-
-          <aside>
-            <QueuePanel tracks={queue} onRemove={removeFromQueue} />
-
-            <div className="playlist">
-              <label>
-                Playlist name
-                <input
-                  type="text"
-                  value={playlistName}
-                  onChange={(event) => setPlaylistName(event.target.value)}
-                />
-              </label>
-              <button
-                className="primary"
-                disabled={playlistSaving || !playlistDirty}
-                onClick={handleSavePlaylist}
+            {/* Alerts */}
+            {success && (
+              <Alert
+                className="border-gray-200"
+                style={{ backgroundColor: "rgba(29, 185, 84, 0.1)" }}
               >
-                {playlistSaving ? "Saving…" : playlistDirty ? "Save as playlist" : "Saved"}
-              </button>
+                <CheckCircle2
+                  className="w-4 h-4"
+                  style={{ color: "var(--spotify-green-dark)" }}
+                />
+                <AlertDescription
+                  style={{ color: "var(--spotify-green-dark)" }}
+                >
+                  {success}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="w-4 h-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Seed Selection */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
+              <SeedSelector
+                seedInput={seedInput}
+                onSeedInputChange={setSeedInput}
+                onFetchTopTracks={handleFetchSeeds}
+                seedCandidates={seedCandidates}
+                isLoadingSeeds={seedLoading}
+                onSeedSelect={handleSelectSeed}
+                isConnected={isConnected}
+              />
+
+              <RecommendationControls
+                limit={limit}
+                onLimitChange={setLimit}
+                onFetchRecommendations={async () => {
+                  if (!userId.trim()) {
+                    setError(
+                      "User ID is required. Click Connect Spotify first."
+                    );
+                    toast.error(
+                      "User ID is required. Click Connect Spotify first."
+                    );
+                    return;
+                  }
+                  if (!seedInput.trim()) {
+                    setError("Paste a Spotify track ID or URL to continue.");
+                    toast.error("Paste a Spotify track ID or URL to continue.");
+                    return;
+                  }
+
+                  setLoading(true);
+                  setError(null);
+                  setSuccess(null);
+
+                  try {
+                    const params = new URLSearchParams({
+                      userId: userId.trim(),
+                      seed: seedInput.trim(),
+                      limit: String(limit),
+                    });
+                    const response = await fetch(
+                      `${API_BASE_URL}/recommend?${params.toString()}`
+                    );
+                    if (!response.ok) {
+                      throw new Error(`API returned ${response.status}`);
+                    }
+                    const payload: RecommendationResponse =
+                      await response.json();
+                    setRecommendations(payload.items);
+                    setSeedMeta(payload.seed);
+                    setStrategy(payload.strategy);
+                    setQueue([]);
+                    setSeedCandidates([]);
+                    setSuccess(
+                      `Loaded ${payload.items.length} recommendations`
+                    );
+                    toast.success(
+                      `Loaded ${payload.items.length} recommendations`
+                    );
+                  } catch (err) {
+                    const errorMessage =
+                      err instanceof Error
+                        ? err.message
+                        : "Unable to load recommendations";
+                    setError(errorMessage);
+                    toast.error(errorMessage);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                isLoading={loading}
+                disabled={!seedInput}
+              />
             </div>
-          </aside>
-        </section>
+
+            {/* Selected Seed Display */}
+            {seedMeta && <SeedDisplay track={seedMeta} strategy={strategy} />}
+
+            {/* Playback Toggle */}
+            {isConnected && (
+              <PlaybackToggle
+                enabled={playbackEnabled}
+                onToggle={handlePlaybackToggle}
+                isConnected={isConnected}
+                status={playback.status}
+                error={playback.error}
+                isPremium={isPremium}
+              />
+            )}
+
+            {/* Recommendations */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-gray-900 mb-6">Recommendations</h2>
+              <RecommendationsGrid
+                tracks={recommendations}
+                queuedTrackIds={queueIds}
+                currentlyPlayingId={playingTrackId}
+                playbackEnabled={playbackEnabled}
+                onPlay={handlePlayTrack}
+                onAddToQueue={addToQueue}
+              />
+            </div>
+          </div>
+
+          {/* Right Column - Queue Panel */}
+          <div className="lg:sticky lg:top-24 h-fit lg:h-[calc(100vh-8rem)]">
+            <QueuePanel
+              queue={queue}
+              onRemoveFromQueue={removeFromQueue}
+              playlistName={playlistName}
+              onPlaylistNameChange={setPlaylistName}
+              onSavePlaylist={handleSavePlaylist}
+              isSaving={playlistSaving}
+              playlistDirty={playlistDirty}
+            />
+          </div>
+        </div>
       </main>
 
-      {playbackEnabled && playback.status === "ready" && (
-        <div className="player-bar">
-          <Player
-            playback={playback}
-            onTogglePlay={async () => {
-              try {
-                if (playingTrackId) {
-                  if (playback.paused) {
-                    await playback.resume();
-                  } else {
-                    await playback.pause();
-                  }
-                }
-              } catch (err) {
-                setError(
-                  err instanceof Error
-                    ? err.message
-                    : "Unable to control playback"
-                );
-              }
-            }}
-          />
-        </div>
+      {/* Player Bar */}
+      {playbackEnabled && playback.status === "ready" && playback.track && (
+        <PlayerBar playback={playback} onTogglePlay={handleTogglePlay} />
       )}
     </div>
   );

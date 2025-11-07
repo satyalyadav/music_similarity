@@ -7,5 +7,6 @@ public record AuthCallbackResponse(
     String spotifyId,
     String displayName,
     String product,
+    String imageUrl,
     String redirectUri
 ) {}

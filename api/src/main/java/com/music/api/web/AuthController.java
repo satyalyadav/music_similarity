@@ -49,6 +49,7 @@ public class AuthController {
             result.profile().id(),
             result.profile().displayName(),
             result.profile().product(),
+            result.profile().imageUrl(),
             result.redirectUri()
         );
         return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(body);
@@ -66,6 +67,9 @@ public class AuthController {
         }
         if (result.profile().product() != null && !result.profile().product().isBlank()) {
             builder.queryParam("product", result.profile().product());
+        }
+        if (result.profile().imageUrl() != null && !result.profile().imageUrl().isBlank()) {
+            builder.queryParam("imageUrl", result.profile().imageUrl());
         }
         URI redirectLocation = builder.build(false).toUri();
 
