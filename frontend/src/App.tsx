@@ -57,7 +57,8 @@ function App() {
   const [seedCandidates, setSeedCandidates] = useState<SeedTrackView[]>([]);
   const [playbackEnabled, setPlaybackEnabled] = useState(false);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
-  const [seedLoading, setSeedLoading] = useState(false);
+  const [seedLoadingTop, setSeedLoadingTop] = useState(false);
+  const [seedLoadingRecent, setSeedLoadingRecent] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [playlistSaving, setPlaylistSaving] = useState(false);
@@ -303,7 +304,7 @@ function App() {
       return;
     }
     setError(null);
-    setSeedLoading(true);
+    setSeedLoadingTop(true);
     try {
       const params = new URLSearchParams({
         userId: userId.trim(),
@@ -333,7 +334,49 @@ function App() {
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
-      setSeedLoading(false);
+      setSeedLoadingTop(false);
+    }
+  }
+
+  async function handleFetchRecentSeeds() {
+    setSuccess(null);
+    if (!userId.trim()) {
+      setError("User ID is required. Click Connect Spotify first.");
+      toast.error("User ID is required. Click Connect Spotify first.");
+      return;
+    }
+    setError(null);
+    setSeedLoadingRecent(true);
+    try {
+      const params = new URLSearchParams({
+        userId: userId.trim(),
+        limit: "20",
+      });
+      const response = await fetch(
+        `${API_BASE_URL}/me/recent-seeds?${params.toString()}`
+      );
+      if (!response.ok) {
+        throw new Error(`Seeds API returned ${response.status}`);
+      }
+      const payload: SeedsResponse = await response.json();
+      setSeedCandidates(payload.items);
+      if (payload.items.length === 0) {
+        setError(
+          "Spotify did not return any seed candidates. Try again later."
+        );
+        toast.error(
+          "Spotify did not return any seed candidates. Try again later."
+        );
+      } else {
+        toast.success(`Loaded ${payload.items.length} recent tracks`);
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Unable to fetch recent tracks";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setSeedLoadingRecent(false);
     }
   }
 
@@ -574,8 +617,10 @@ function App() {
                 seedInput={seedInput}
                 onSeedInputChange={setSeedInput}
                 onFetchTopTracks={handleFetchSeeds}
+                onFetchRecentlyPlayed={handleFetchRecentSeeds}
                 seedCandidates={seedCandidates}
-                isLoadingSeeds={seedLoading}
+                isLoadingTopSeeds={seedLoadingTop}
+                isLoadingRecentSeeds={seedLoadingRecent}
                 onSeedSelect={handleSelectSeed}
                 isConnected={isConnected}
               />

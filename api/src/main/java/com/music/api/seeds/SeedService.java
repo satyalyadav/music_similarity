@@ -60,6 +60,21 @@ public class SeedService {
         return deduped;
     }
 
+    public List<SeedTrackView> getRecentSeedTracks(UUID userId, int requestedLimit) {
+        int limit = requestedLimit > 0 ? Math.min(requestedLimit, 50) : DEFAULT_LIMIT;
+        UserAuth userAuth = userAuthRepository.findByUserId(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User authorization not found"));
+
+        FetchResult recentResult = fetchWithRefresh(userAuth, token -> spotifyApiClient.getRecentlyPlayed(token, limit));
+        List<SeedTrack> tracks = recentResult.tracks();
+
+        List<SeedTrackView> deduped = deduplicateAndLimit(tracks, limit);
+        if (deduped.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Spotify did not return any candidate tracks");
+        }
+        return deduped;
+    }
+
     private List<SeedTrackView> deduplicateAndLimit(List<SeedTrack> tracks, int limit) {
         Map<String, SeedTrack> dedup = new LinkedHashMap<>();
         for (SeedTrack track : tracks) {

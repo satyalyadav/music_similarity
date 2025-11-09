@@ -9,8 +9,10 @@ interface SeedSelectorProps {
   seedInput: string;
   onSeedInputChange: (value: string) => void;
   onFetchTopTracks: () => void;
+  onFetchRecentlyPlayed: () => void;
   seedCandidates: SeedTrackView[];
-  isLoadingSeeds: boolean;
+  isLoadingTopSeeds: boolean;
+  isLoadingRecentSeeds: boolean;
   onSeedSelect: (track: SeedTrackView) => void;
   isConnected: boolean;
 }
@@ -19,8 +21,10 @@ export function SeedSelector({
   seedInput,
   onSeedInputChange,
   onFetchTopTracks,
+  onFetchRecentlyPlayed,
   seedCandidates,
-  isLoadingSeeds,
+  isLoadingTopSeeds,
+  isLoadingRecentSeeds,
   onSeedSelect,
   isConnected,
 }: SeedSelectorProps) {
@@ -48,12 +52,21 @@ export function SeedSelector({
           </div>
           <Button
             onClick={onFetchTopTracks}
-            disabled={!isConnected || isLoadingSeeds}
+            disabled={!isConnected || isLoadingTopSeeds}
             className="gap-2 h-12 px-6 text-white hover:opacity-90"
-            style={{ background: isConnected && !isLoadingSeeds ? 'var(--spotify-green)' : undefined }}
+            style={{ background: isConnected && !isLoadingTopSeeds ? 'var(--spotify-green)' : undefined }}
           >
             <Sparkles className="w-4 h-4" />
-            {isLoadingSeeds ? "Loading..." : "Use my top tracks"}
+            {isLoadingTopSeeds ? "Loading..." : "Use my top tracks"}
+          </Button>
+          <Button
+            onClick={onFetchRecentlyPlayed}
+            disabled={!isConnected || isLoadingRecentSeeds}
+            className="gap-2 h-12 px-6 text-white hover:opacity-90"
+            style={{ background: isConnected && !isLoadingRecentSeeds ? 'var(--spotify-green)' : undefined }}
+          >
+            <Sparkles className="w-4 h-4" />
+            {isLoadingRecentSeeds ? "Loading..." : "Use my recently played"}
           </Button>
         </div>
         <p className="text-sm text-gray-500">
