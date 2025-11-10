@@ -75,14 +75,20 @@ export function SeedSelector({
   const handleModeChange = (mode: SeedMode) => {
     const previousMode = selectedMode;
     setSelectedMode(mode);
-    
+
     // Clear candidates when switching between top/recent modes or away from them
-    if (onClearCandidates && (previousMode === "top" || previousMode === "recent" || mode === "top" || mode === "recent")) {
+    if (
+      onClearCandidates &&
+      (previousMode === "top" ||
+        previousMode === "recent" ||
+        mode === "top" ||
+        mode === "recent")
+    ) {
       if (previousMode !== mode) {
         onClearCandidates();
       }
     }
-    
+
     // Fetch data when switching to top or recent modes
     if (mode === "top" && isConnected && !isLoadingTopSeeds) {
       onFetchTopTracks();
@@ -110,15 +116,24 @@ export function SeedSelector({
             key={track.id}
             onClick={() => onSeedSelect(track)}
             className="group p-3 bg-white rounded-xl border border-gray-100 hover:shadow-md transition-all duration-200 text-left cursor-pointer"
-            style={{
-              '--hover-border': 'var(--spotify-green-light)',
-            } as React.CSSProperties}
-            onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--spotify-green-light)'}
-            onMouseLeave={(e) => e.currentTarget.style.borderColor = ''}
+            style={
+              {
+                "--hover-border": "var(--spotify-green-light)",
+              } as React.CSSProperties
+            }
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.borderColor = "var(--spotify-green-light)")
+            }
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "")}
           >
             <div className="aspect-square mb-2 rounded-lg overflow-hidden bg-gray-100">
               <ImageWithFallback
-                src={track.imageUrl || `https://via.placeholder.com/120?text=${encodeURIComponent(track.name)}`}
+                src={
+                  track.imageUrl ||
+                  `https://via.placeholder.com/120?text=${encodeURIComponent(
+                    track.name
+                  )}`
+                }
                 alt={track.name}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
               />
@@ -135,7 +150,7 @@ export function SeedSelector({
     <div className="space-y-6">
       <div className="space-y-4">
         <Label className="text-gray-900">Start with a track</Label>
-        
+
         {/* Mode Selector Tabs */}
         <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-8 mb-4">
           {isConnected && onSearchTracks && (
@@ -148,7 +163,11 @@ export function SeedSelector({
               }`}
               style={
                 selectedMode === "search"
-                  ? { backgroundColor: "rgba(29, 185, 84, 0.1)", color: "var(--spotify-green-dark)", borderColor: "rgba(29, 185, 84, 0.3)" }
+                  ? {
+                      backgroundColor: "rgba(29, 185, 84, 0.1)",
+                      color: "var(--spotify-green-dark)",
+                      borderColor: "rgba(29, 185, 84, 0.3)",
+                    }
                   : undefined
               }
             >
@@ -156,7 +175,7 @@ export function SeedSelector({
               Search
             </button>
           )}
-          
+
           {isConnected && (
             <>
               <button
@@ -169,14 +188,18 @@ export function SeedSelector({
                 }`}
                 style={
                   selectedMode === "top"
-                    ? { backgroundColor: "rgba(29, 185, 84, 0.1)", color: "var(--spotify-green-dark)", borderColor: "rgba(29, 185, 84, 0.3)" }
+                    ? {
+                        backgroundColor: "rgba(29, 185, 84, 0.1)",
+                        color: "var(--spotify-green-dark)",
+                        borderColor: "rgba(29, 185, 84, 0.3)",
+                      }
                     : undefined
                 }
               >
                 <TrendingUp className="w-4 h-4" />
                 {isLoadingTopSeeds ? "Loading..." : "Top Tracks"}
               </button>
-              
+
               <button
                 onClick={() => handleModeChange("recent")}
                 disabled={isLoadingRecentSeeds}
@@ -187,7 +210,11 @@ export function SeedSelector({
                 }`}
                 style={
                   selectedMode === "recent"
-                    ? { backgroundColor: "rgba(29, 185, 84, 0.1)", color: "var(--spotify-green-dark)", borderColor: "rgba(29, 185, 84, 0.3)" }
+                    ? {
+                        backgroundColor: "rgba(29, 185, 84, 0.1)",
+                        color: "var(--spotify-green-dark)",
+                        borderColor: "rgba(29, 185, 84, 0.3)",
+                      }
                     : undefined
                 }
               >
@@ -196,7 +223,7 @@ export function SeedSelector({
               </button>
             </>
           )}
-          
+
           <button
             onClick={() => handleModeChange("paste")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer mb-2 ${
@@ -206,7 +233,11 @@ export function SeedSelector({
             }`}
             style={
               selectedMode === "paste"
-                ? { backgroundColor: "rgba(29, 185, 84, 0.1)", color: "var(--spotify-green-dark)", borderColor: "rgba(29, 185, 84, 0.3)" }
+                ? {
+                    backgroundColor: "rgba(29, 185, 84, 0.1)",
+                    color: "var(--spotify-green-dark)",
+                    borderColor: "rgba(29, 185, 84, 0.3)",
+                  }
                 : undefined
             }
           >
@@ -228,11 +259,15 @@ export function SeedSelector({
                   onChange={(e) => onSeedInputChange(e.target.value)}
                   placeholder="Paste Spotify track URL or ID..."
                   className="pl-10 h-12 border-gray-200"
-                  style={{
-                    '--tw-ring-color': 'var(--spotify-green)',
-                  } as React.CSSProperties}
-                  onFocus={(e) => e.target.style.borderColor = 'var(--spotify-green)'}
-                  onBlur={(e) => e.target.style.borderColor = ''}
+                  style={
+                    {
+                      "--tw-ring-color": "var(--spotify-green)",
+                    } as React.CSSProperties
+                  }
+                  onFocus={(e) =>
+                    (e.target.style.borderColor = "var(--spotify-green)")
+                  }
+                  onBlur={(e) => (e.target.style.borderColor = "")}
                 />
               </div>
               <p className="text-sm text-gray-500">
@@ -252,11 +287,15 @@ export function SeedSelector({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search for tracks on Spotify..."
                   className="pl-10 h-12 border-gray-200"
-                  style={{
-                    '--tw-ring-color': 'var(--spotify-green)',
-                  } as React.CSSProperties}
-                  onFocus={(e) => e.target.style.borderColor = 'var(--spotify-green)'}
-                  onBlur={(e) => e.target.style.borderColor = ''}
+                  style={
+                    {
+                      "--tw-ring-color": "var(--spotify-green)",
+                    } as React.CSSProperties
+                  }
+                  onFocus={(e) =>
+                    (e.target.style.borderColor = "var(--spotify-green)")
+                  }
+                  onBlur={(e) => (e.target.style.borderColor = "")}
                 />
                 {isSearching && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
@@ -264,18 +303,27 @@ export function SeedSelector({
                   </div>
                 )}
               </div>
-              
+
               {showSearchResults && searchResults.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-700 font-medium">Search results</p>
+                  <p className="text-sm text-gray-700 font-medium">
+                    Search results
+                  </p>
                   {renderTrackGrid(searchResults)}
                 </div>
               )}
-              {showSearchResults && !isSearching && searchQuery.trim() && searchResults.length === 0 && (
-                <p className="text-sm text-gray-500">No tracks found. Try a different search.</p>
-              )}
+              {showSearchResults &&
+                !isSearching &&
+                searchQuery.trim() &&
+                searchResults.length === 0 && (
+                  <p className="text-sm text-gray-500">
+                    No tracks found. Try a different search.
+                  </p>
+                )}
               {!showSearchResults && searchQuery.trim() === "" && (
-                <p className="text-sm text-gray-500">Start typing to search for tracks on Spotify</p>
+                <p className="text-sm text-gray-500">
+                  Start typing to search for tracks on Spotify
+                </p>
               )}
             </div>
           )}
@@ -285,21 +333,32 @@ export function SeedSelector({
             <div className="space-y-3">
               {isLoadingTopSeeds ? (
                 <div className="text-center py-12">
-                  <p className="text-sm text-gray-500">Loading your top tracks...</p>
+                  <p className="text-sm text-gray-500">
+                    Loading your top tracks...
+                  </p>
                 </div>
               ) : seedCandidates.length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-700 font-medium">Your top tracks</p>
+                  <p className="text-sm text-gray-700 font-medium">
+                    Your top tracks
+                  </p>
                   {renderTrackGrid(seedCandidates)}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-sm text-gray-500">Click "Top Tracks" above to load your favorite tracks</p>
+                  <p className="text-sm text-gray-500">
+                    Click "Top Tracks" above to load your favorite tracks
+                  </p>
                   <Button
                     onClick={onFetchTopTracks}
                     disabled={!isConnected || isLoadingTopSeeds}
                     className="gap-2 text-white hover:opacity-90"
-                    style={{ background: isConnected && !isLoadingTopSeeds ? 'var(--spotify-green)' : undefined }}
+                    style={{
+                      background:
+                        isConnected && !isLoadingTopSeeds
+                          ? "var(--spotify-green)"
+                          : undefined,
+                    }}
                   >
                     <TrendingUp className="w-4 h-4" />
                     Load Top Tracks
@@ -314,21 +373,32 @@ export function SeedSelector({
             <div className="space-y-3">
               {isLoadingRecentSeeds ? (
                 <div className="text-center py-12">
-                  <p className="text-sm text-gray-500">Loading your recently played tracks...</p>
+                  <p className="text-sm text-gray-500">
+                    Loading your recently played tracks...
+                  </p>
                 </div>
               ) : seedCandidates.length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-700 font-medium">Recently played</p>
+                  <p className="text-sm text-gray-700 font-medium">
+                    Recently played
+                  </p>
                   {renderTrackGrid(seedCandidates)}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-sm text-gray-500">Click "Recent" above to load your recently played tracks</p>
+                  <p className="text-sm text-gray-500">
+                    Click "Recent" above to load your recently played tracks
+                  </p>
                   <Button
                     onClick={onFetchRecentlyPlayed}
                     disabled={!isConnected || isLoadingRecentSeeds}
                     className="gap-2 text-white hover:opacity-90"
-                    style={{ background: isConnected && !isLoadingRecentSeeds ? 'var(--spotify-green)' : undefined }}
+                    style={{
+                      background:
+                        isConnected && !isLoadingRecentSeeds
+                          ? "var(--spotify-green)"
+                          : undefined,
+                    }}
                   >
                     <Clock className="w-4 h-4" />
                     Load Recent Tracks
@@ -342,5 +412,3 @@ export function SeedSelector({
     </div>
   );
 }
-
-
