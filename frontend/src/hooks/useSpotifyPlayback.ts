@@ -275,10 +275,17 @@ export function useSpotifyPlayback({
             cb(token);
           } catch (err) {
             if (!cancelled) {
-              setError(
-                err instanceof Error ? err.message : "Playback auth error"
-              );
-              setStatus("error");
+              const errorMessage =
+                err instanceof Error ? err.message : "Playback auth error";
+              // Ignore scope check errors - these are non-critical SDK internal checks
+              if (
+                !errorMessage.toLowerCase().includes("check_scope") &&
+                !errorMessage.toLowerCase().includes("melody") &&
+                !errorMessage.toLowerCase().includes("invalid token scopes")
+              ) {
+                setError(errorMessage);
+                setStatus("error");
+              }
             }
           }
         },
@@ -302,6 +309,18 @@ export function useSpotifyPlayback({
 
       const handleError = ({ message }: { message: string }) => {
         if (cancelled) {
+          return;
+        }
+        // Ignore scope check errors from Spotify SDK - these are non-critical
+        // The SDK makes internal calls to check_scope that may fail with 403,
+        // but playback still works fine
+        const errorMessage = message || "";
+        if (
+          errorMessage.toLowerCase().includes("check_scope") ||
+          errorMessage.toLowerCase().includes("melody") ||
+          errorMessage.toLowerCase().includes("invalid token scopes")
+        ) {
+          // Silently ignore these non-critical errors
           return;
         }
         setError(message || "Spotify playback error");

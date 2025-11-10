@@ -139,6 +139,33 @@ public class SpotifyApiClient {
         }
     }
 
+    public List<SeedTrack> searchTracks(String accessToken, String query, int limit) {
+        try {
+            SearchResponse response = execute(spotifyWebClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/search")
+                    .queryParam("q", query)
+                    .queryParam("type", "track")
+                    .queryParam("limit", Math.min(limit, 50))
+                    .build())
+                .accept(MediaType.APPLICATION_JSON)
+                .headers(headers -> headers.setBearerAuth(accessToken))
+                .retrieve()
+                .bodyToMono(SearchResponse.class));
+
+            if (response == null || response.tracks() == null || response.tracks().items() == null) {
+                return List.of();
+            }
+            return response.tracks().items().stream()
+                .map(this::mapTrack)
+                .filter(track -> track != null)
+                .collect(Collectors.toCollection(ArrayList::new));
+        } catch (WebClientResponseException ex) {
+            log.debug("Spotify search failed for query {}: {}", query, ex.getStatusCode());
+            throw ex;
+        }
+    }
+
     public List<SeedTrack> getRecentlyPlayed(String accessToken, int limit) {
         try {
             RecentlyPlayedResponse response = execute(spotifyWebClient.get()

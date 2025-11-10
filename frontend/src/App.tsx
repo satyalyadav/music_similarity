@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL, RECOMMENDATION_LIMIT } from "./config";
 import { useSpotifyPlayback } from "./hooks/useSpotifyPlayback";
 import {
@@ -55,6 +55,8 @@ function App() {
     imageUrl?: string | null;
   } | null>(null);
   const [seedCandidates, setSeedCandidates] = useState<SeedTrackView[]>([]);
+  const [searchResults, setSearchResults] = useState<SeedTrackView[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [playbackEnabled, setPlaybackEnabled] = useState(false);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
   const [seedLoadingTop, setSeedLoadingTop] = useState(false);
@@ -387,6 +389,41 @@ function App() {
     toast.success(`Selected: ${track.name}`);
   }
 
+  const handleSearchTracks = useCallback(
+    async (query: string) => {
+      if (!userId.trim() || !query.trim()) {
+        setSearchResults([]);
+        return;
+      }
+      setIsSearching(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams({
+          userId: userId.trim(),
+          query: query.trim(),
+          limit: "20",
+        });
+        const response = await fetch(
+          `${API_BASE_URL}/me/search-tracks?${params.toString()}`
+        );
+        if (!response.ok) {
+          throw new Error(`Search API returned ${response.status}`);
+        }
+        const payload: SeedsResponse = await response.json();
+        setSearchResults(payload.items);
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Unable to search tracks";
+        setError(errorMessage);
+        toast.error(errorMessage);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [userId]
+  );
+
   async function handleSavePlaylist() {
     if (!userId.trim()) {
       setError("User ID is required to save playlists.");
@@ -623,6 +660,10 @@ function App() {
                 isLoadingRecentSeeds={seedLoadingRecent}
                 onSeedSelect={handleSelectSeed}
                 isConnected={isConnected}
+                onSearchTracks={handleSearchTracks}
+                searchResults={searchResults}
+                isSearching={isSearching}
+                onClearCandidates={() => setSeedCandidates([])}
               />
 
               <RecommendationControls

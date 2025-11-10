@@ -75,6 +75,18 @@ public class SeedService {
         return deduped;
     }
 
+    public List<SeedTrackView> searchTracks(UUID userId, String query, int requestedLimit) {
+        int limit = requestedLimit > 0 ? Math.min(requestedLimit, 50) : DEFAULT_LIMIT;
+        UserAuth userAuth = userAuthRepository.findByUserId(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User authorization not found"));
+
+        FetchResult searchResult = fetchWithRefresh(userAuth, token -> spotifyApiClient.searchTracks(token, query, limit));
+        List<SeedTrack> tracks = searchResult.tracks();
+
+        List<SeedTrackView> deduped = deduplicateAndLimit(tracks, limit);
+        return deduped;
+    }
+
     private List<SeedTrackView> deduplicateAndLimit(List<SeedTrack> tracks, int limit) {
         Map<String, SeedTrack> dedup = new LinkedHashMap<>();
         for (SeedTrack track : tracks) {
@@ -90,20 +102,65 @@ public class SeedService {
     }
 
     private FetchResult fetchWithRefresh(UserAuth userAuth, Function<String, List<SeedTrack>> fetcher) {
-        try {
-            List<SeedTrack> result = fetcher.apply(userAuth.accessToken());
-            return new FetchResult(userAuth, result);
-        } catch (WebClientResponseException ex) {
-            if (ex.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()) {
-                UserAuth refreshed = spotifyAuthService.refreshAccessToken(userAuth);
-                List<SeedTrack> result = fetcher.apply(refreshed.accessToken());
-                return new FetchResult(refreshed, result);
+        int maxRetries = 3;
+        int attempt = 0;
+        UserAuth currentAuth = userAuth;
+        
+        while (attempt < maxRetries) {
+            try {
+                List<SeedTrack> result = fetcher.apply(currentAuth.accessToken());
+                return new FetchResult(currentAuth, result);
+            } catch (WebClientResponseException ex) {
+                if (ex.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()) {
+                    attempt++;
+                    if (attempt >= maxRetries) {
+                        // Final attempt: refresh the token
+                        UserAuth refreshed = spotifyAuthService.refreshAccessToken(currentAuth);
+                        try {
+                            List<SeedTrack> result = fetcher.apply(refreshed.accessToken());
+                            return new FetchResult(refreshed, result);
+                        } catch (WebClientResponseException finalEx) {
+                            throw finalEx;
+                        }
+                    }
+                    
+                    // Re-read from database in case another process (e.g., playback) refreshed the token
+                    UserAuth latestAuth = userAuthRepository.findByUserId(currentAuth.userId())
+                        .orElse(currentAuth);
+                    
+                    // If token changed, use the new one for next retry
+                    if (!latestAuth.accessToken().equals(currentAuth.accessToken())) {
+                        currentAuth = latestAuth;
+                        // Small delay to let any in-flight refresh complete
+                        try {
+                            Thread.sleep(50 * attempt); // 50ms, 100ms, 150ms delays
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("Interrupted during token refresh retry", ie);
+                        }
+                        continue; // Retry with new token
+                    }
+                    
+                    // Token unchanged, refresh it
+                    currentAuth = spotifyAuthService.refreshAccessToken(latestAuth);
+                    // Small delay before retry
+                    try {
+                        Thread.sleep(50 * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during token refresh retry", ie);
+                    }
+                    continue; // Retry with refreshed token
+                }
+                if (ex.getStatusCode().value() == HttpStatus.FORBIDDEN.value()) {
+                    return new FetchResult(currentAuth, List.of());
+                }
+                throw ex;
             }
-            if (ex.getStatusCode().value() == HttpStatus.FORBIDDEN.value()) {
-                return new FetchResult(userAuth, List.of());
-            }
-            throw ex;
         }
+        
+        // Should never reach here, but just in case
+        throw new RuntimeException("Failed to fetch after " + maxRetries + " attempts");
     }
 
     private record FetchResult(UserAuth userAuth, List<SeedTrack> tracks) {}

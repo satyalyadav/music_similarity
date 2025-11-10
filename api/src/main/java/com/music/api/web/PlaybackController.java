@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.music.api.auth.SpotifyAuthService;
@@ -45,7 +46,24 @@ public class PlaybackController {
         UserAuth userAuth = userAuthRepository.findByUserId(userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User authorization not found"));
 
-        UserAuth refreshed = spotifyAuthService.refreshAccessToken(userAuth);
+        // Try to use existing token first, only refresh if it fails
+        UserAuth refreshed;
+        SpotifyUserProfile profile;
+        try {
+            // Validate token and get profile in one call
+            profile = spotifyApiClient.getCurrentUserProfile(userAuth.accessToken());
+            refreshed = userAuth; // Token is still valid
+        } catch (WebClientResponseException ex) {
+            if (ex.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()) {
+                // Token expired, refresh it
+                refreshed = spotifyAuthService.refreshAccessToken(userAuth);
+            } else {
+                // Other error, still try to refresh as fallback
+                refreshed = spotifyAuthService.refreshAccessToken(userAuth);
+            }
+            // Get profile with refreshed token
+            profile = spotifyApiClient.getCurrentUserProfile(refreshed.accessToken());
+        }
         String scopes = refreshed.scopes() != null ? refreshed.scopes() : "";
 
         boolean hasStreaming = hasScope(scopes, SCOPE_STREAMING);
@@ -66,8 +84,6 @@ public class PlaybackController {
         if (!hasUserPrivate) {
             missingScopes.add(SCOPE_USER_PRIVATE);
         }
-
-        SpotifyUserProfile profile = spotifyApiClient.getCurrentUserProfile(refreshed.accessToken());
         Boolean premium = profile.product() != null ? profile.product().equalsIgnoreCase("premium") : null;
         boolean eligible = missingScopes.isEmpty() && Boolean.TRUE.equals(premium);
 

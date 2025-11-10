@@ -36,4 +36,14 @@ public class SeedController {
         SeedsResponse response = new SeedsResponse(seedService.getRecentSeedTracks(userId, limit));
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/me/search-tracks")
+    public ResponseEntity<SeedsResponse> searchTracks(
+        @RequestParam("userId") UUID userId,
+        @RequestParam("query") String query,
+        @RequestParam(name = "limit", defaultValue = "20") int limit
+    ) {
+        SeedsResponse response = new SeedsResponse(seedService.searchTracks(userId, query, limit));
+        return ResponseEntity.ok(response);
+    }
 }
