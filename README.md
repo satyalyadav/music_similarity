@@ -4,6 +4,35 @@
 
 This is a simple app that came from the idea of finding music using a single song you like a lot. It uses Spotify and Last.fm to try and come up with songs similar to your favorite song. It is is a pretty simple app right now but it could be developed into more to find even more authentic recommendations. I might deploy it to a service. I am looking at ways to take Spotify login out of this so users can use it without logging in. Enjoy!
 
+## Features
+
+- **Multiple Seed Selection Methods:**
+
+  - Paste a Spotify track URL or ID directly
+  - Search for tracks on Spotify
+  - Use your top tracks from Spotify
+  - Use your recently played tracks
+
+- **Smart Recommendations:**
+
+  - Uses Last.fm similarity data combined with Spotify's catalog
+  - Multiple fallback strategies for finding similar tracks
+  - Displays similarity scores for each recommendation
+  - Configurable number of recommendations (5-50)
+
+- **In-Browser Playback:**
+
+  - Listen to recommendations without leaving the page (Spotify Premium required)
+  - Full playback controls (play, pause, seek)
+  - Real-time progress tracking
+  - Track information display
+
+- **Queue & Playlist Management:**
+  - Build a queue of favorite recommendations
+  - Save your queue as a Spotify playlist
+  - Custom playlist naming
+  - Easy track removal from queue
+
 ## Stack
 
 - Frontend: Vite + React + TypeScript
