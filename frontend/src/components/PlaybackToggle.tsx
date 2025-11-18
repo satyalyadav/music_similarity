@@ -83,6 +83,18 @@ export function PlaybackToggle({
   // When disabled, status is "disabled", so we should allow toggling
   const canToggle = isConnected && status !== "loading";
 
+  // Hide the toggle entirely if user is not premium - just show a message
+  if (isConnected && isPremium === false) {
+    return (
+      <Alert variant="default" className="border-gray-200">
+        <AlertCircle className="w-4 h-4" />
+        <AlertDescription className="text-sm">
+          Spotify Premium is required for in-browser playback. Upgrade your account to enable this feature.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100">
@@ -91,7 +103,7 @@ export function PlaybackToggle({
             <Headphones className="w-5 h-5" style={{ color: 'var(--spotify-green)' }} />
           </div>
           <Label htmlFor="playback-toggle" className="cursor-pointer">
-            Play recommendations here {isPremium === undefined ? "(Spotify Premium required)" : ""}
+            Play recommendations here
           </Label>
         </div>
         <div className="flex-shrink-0">

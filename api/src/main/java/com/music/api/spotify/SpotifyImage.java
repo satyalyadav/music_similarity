@@ -8,3 +8,5 @@ public record SpotifyImage(String url, Integer height, Integer width) {}
 
 
 
+
+

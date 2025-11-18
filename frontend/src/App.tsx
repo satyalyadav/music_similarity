@@ -15,7 +15,6 @@ import { RecommendationControls } from "./components/RecommendationControls";
 import { RecommendationsGrid } from "./components/RecommendationsGrid";
 import { QueuePanel } from "./components/QueuePanel";
 import { PlayerBar } from "./components/PlayerBar";
-import { PlaybackToggle } from "./components/PlaybackToggle";
 import { Alert, AlertDescription } from "./components/ui/alert";
 import { Music2, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -87,8 +86,12 @@ function App() {
   const canUsePlayback = playbackEnabled && playback.status === "ready";
   const playbackToggleDisabled = !userId || playback.status === "loading";
   const isConnected = !!userId;
-  const isPremium =
-    userProfile?.product === "Premium" || playback.product === "Premium";
+  // Check for premium status case-insensitively (Spotify may return "premium" or "Premium")
+  // Returns: true if premium, false if definitely not premium, undefined if unknown
+  const product = userProfile?.product || playback.product;
+  const isPremium = product == null 
+    ? undefined 
+    : product.toLowerCase() === "premium";
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -181,6 +184,29 @@ function App() {
       return { ...prev, product: playback.product };
     });
   }, [playback.product]);
+
+  // Auto-enable playback for premium users when they connect
+  useEffect(() => {
+    if (!isConnected) {
+      return;
+    }
+    
+    // Check if user is premium - prioritize userProfile.product since it's available immediately
+    // playback.product is only available after playback is enabled
+    // Use case-insensitive comparison (Spotify may return "premium" or "Premium")
+    const product = userProfile?.product || playback.product;
+    const userIsPremium = product != null && product.toLowerCase() === "premium";
+    const userIsNotPremium = product != null && product.toLowerCase() !== "premium";
+    
+    // Only auto-enable if we have a definitive premium status and playback isn't already enabled
+    if (userIsPremium && !playbackEnabled && playback.status !== "loading" && playback.status !== "error") {
+      // Automatically enable playback for premium users
+      setPlaybackEnabled(true);
+    } else if (userIsNotPremium && playbackEnabled) {
+      // Ensure playback is disabled for non-premium users
+      setPlaybackEnabled(false);
+    }
+  }, [isConnected, userProfile?.product, playback.product, playback.status, playbackEnabled]);
 
   async function handleFetch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -733,16 +759,14 @@ function App() {
             {/* Selected Seed Display */}
             {seedMeta && <SeedDisplay track={seedMeta} strategy={strategy} />}
 
-            {/* Playback Toggle */}
-            {isConnected && (
-              <PlaybackToggle
-                enabled={playbackEnabled}
-                onToggle={handlePlaybackToggle}
-                isConnected={isConnected}
-                status={playback.status}
-                error={playback.error}
-                isPremium={isPremium}
-              />
+            {/* Playback Status - Only show message for non-premium users */}
+            {isConnected && isPremium === false && (
+              <Alert variant="default" className="border-gray-200">
+                <AlertCircle className="w-4 h-4" />
+                <AlertDescription className="text-sm">
+                  Spotify Premium is required for in-browser playback. Upgrade your account to enable this feature.
+                </AlertDescription>
+              </Alert>
             )}
 
             {/* Recommendations */}
