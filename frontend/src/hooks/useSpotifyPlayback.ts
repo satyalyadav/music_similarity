@@ -525,6 +525,21 @@ export function useSpotifyPlayback({
         throw new Error("Missing user ID for playback");
       }
 
+      // Check if device is still active by verifying player state
+      let deviceIsActive = true;
+      try {
+        if (typeof playerRef.current.getCurrentState === "function") {
+          const state = await playerRef.current.getCurrentState();
+          // If state is null, device might be inactive
+          // But we'll still try to play - the SDK should handle reconnection
+          deviceIsActive = state !== null;
+        }
+      } catch {
+        // If we can't get state, assume device might be inactive
+        // We'll still try to play, but skip the pause API call
+        deviceIsActive = false;
+      }
+
       try {
         await playerRef.current.activateElement?.();
       } catch {
@@ -553,14 +568,29 @@ export function useSpotifyPlayback({
           try {
             await playerRef.current.pause();
           } catch {}
-          const tokenForPause = await requestPlaybackToken();
-          await fetch(
-            `https://api.spotify.com/v1/me/player/pause?device_id=${deviceIdRef.current}`,
-            {
-              method: "PUT",
-              headers: { Authorization: `Bearer ${tokenForPause}` },
+          // Only try to pause via API if device appears active
+          // This prevents 404 errors when device is inactive after being idle
+          // If device is inactive, there's nothing to pause anyway
+          if (deviceIsActive && deviceIdRef.current) {
+            try {
+              const tokenForPause = await requestPlaybackToken();
+              const pauseResponse = await fetch(
+                `https://api.spotify.com/v1/me/player/pause?device_id=${deviceIdRef.current}`,
+                {
+                  method: "PUT",
+                  headers: { Authorization: `Bearer ${tokenForPause}` },
+                }
+              );
+              // Silently ignore 404 errors - device is inactive, nothing to pause
+              // Only log other errors for debugging
+              if (!pauseResponse.ok && pauseResponse.status !== 404) {
+                console.warn("Failed to pause via API:", pauseResponse.status);
+              }
+            } catch (err) {
+              // Silently ignore pause errors - they're non-fatal
+              // Network errors or 404s are expected if device is inactive
             }
-          ).catch(() => {});
+          }
           await waitForPause();
         } catch {
           // non-fatal
@@ -573,7 +603,9 @@ export function useSpotifyPlayback({
       lastSeekTargetRef.current = null;
 
       const token = await requestPlaybackToken();
-      const response = await fetch(
+
+      // Try to play - if device is inactive, wait for reconnection and retry once
+      let response = await fetch(
         `https://api.spotify.com/v1/me/player/play?device_id=${deviceIdRef.current}`,
         {
           method: "PUT",
@@ -587,6 +619,46 @@ export function useSpotifyPlayback({
           }),
         }
       );
+
+      // If we get a 404, the device might be inactive - wait for SDK to reconnect
+      if (response.status === 404 && playerRef.current && deviceIdRef.current) {
+        // Wait a moment for the SDK to potentially reconnect
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Verify device is ready before retrying
+        let deviceReady = false;
+        try {
+          if (typeof playerRef.current.getCurrentState === "function") {
+            const state = await playerRef.current.getCurrentState();
+            deviceReady = state !== null;
+          } else {
+            // If getCurrentState is not available, assume device is ready
+            deviceReady = true;
+          }
+        } catch {
+          // If we can't get state, device is likely not ready
+          deviceReady = false;
+        }
+
+        // Only retry if device appears ready
+        if (deviceReady && deviceIdRef.current) {
+          const retryToken = await requestPlaybackToken();
+          response = await fetch(
+            `https://api.spotify.com/v1/me/player/play?device_id=${deviceIdRef.current}`,
+            {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${retryToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                uris: [`spotify:track:${spotifyTrackId}`],
+                position_ms: 0,
+              }),
+            }
+          );
+        }
+      }
 
       if (!response.ok) {
         if (response.status === 404) {

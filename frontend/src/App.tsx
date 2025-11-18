@@ -89,9 +89,8 @@ function App() {
   // Check for premium status case-insensitively (Spotify may return "premium" or "Premium")
   // Returns: true if premium, false if definitely not premium, undefined if unknown
   const product = userProfile?.product || playback.product;
-  const isPremium = product == null 
-    ? undefined 
-    : product.toLowerCase() === "premium";
+  const isPremium =
+    product == null ? undefined : product.toLowerCase() === "premium";
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -190,23 +189,36 @@ function App() {
     if (!isConnected) {
       return;
     }
-    
+
     // Check if user is premium - prioritize userProfile.product since it's available immediately
     // playback.product is only available after playback is enabled
     // Use case-insensitive comparison (Spotify may return "premium" or "Premium")
     const product = userProfile?.product || playback.product;
-    const userIsPremium = product != null && product.toLowerCase() === "premium";
-    const userIsNotPremium = product != null && product.toLowerCase() !== "premium";
-    
+    const userIsPremium =
+      product != null && product.toLowerCase() === "premium";
+    const userIsNotPremium =
+      product != null && product.toLowerCase() !== "premium";
+
     // Only auto-enable if we have a definitive premium status and playback isn't already enabled
-    if (userIsPremium && !playbackEnabled && playback.status !== "loading" && playback.status !== "error") {
+    if (
+      userIsPremium &&
+      !playbackEnabled &&
+      playback.status !== "loading" &&
+      playback.status !== "error"
+    ) {
       // Automatically enable playback for premium users
       setPlaybackEnabled(true);
     } else if (userIsNotPremium && playbackEnabled) {
       // Ensure playback is disabled for non-premium users
       setPlaybackEnabled(false);
     }
-  }, [isConnected, userProfile?.product, playback.product, playback.status, playbackEnabled]);
+  }, [
+    isConnected,
+    userProfile?.product,
+    playback.product,
+    playback.status,
+    playbackEnabled,
+  ]);
 
   async function handleFetch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -764,7 +776,8 @@ function App() {
               <Alert variant="default" className="border-gray-200">
                 <AlertCircle className="w-4 h-4" />
                 <AlertDescription className="text-sm">
-                  Spotify Premium is required for in-browser playback. Upgrade your account to enable this feature.
+                  Spotify Premium is required for in-browser playback. Upgrade
+                  your account to enable this feature.
                 </AlertDescription>
               </Alert>
             )}
