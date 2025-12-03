@@ -30,8 +30,3 @@ export function SeedDisplay({ track, strategy }: SeedDisplayProps) {
   );
 }
 
-
-
-
-
-

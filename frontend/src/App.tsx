@@ -707,62 +707,7 @@ function App() {
               <RecommendationControls
                 limit={limit}
                 onLimitChange={setLimit}
-                onFetchRecommendations={async () => {
-                  if (!userId.trim()) {
-                    setError(
-                      "User ID is required. Click Connect Spotify first."
-                    );
-                    toast.error(
-                      "User ID is required. Click Connect Spotify first."
-                    );
-                    return;
-                  }
-                  if (!seedInput.trim()) {
-                    setError("Paste a Spotify track ID or URL to continue.");
-                    toast.error("Paste a Spotify track ID or URL to continue.");
-                    return;
-                  }
-
-                  setLoading(true);
-                  setError(null);
-                  setSuccess(null);
-
-                  try {
-                    const params = new URLSearchParams({
-                      userId: userId.trim(),
-                      seed: seedInput.trim(),
-                      limit: String(limit),
-                    });
-                    const response = await fetch(
-                      `${API_BASE_URL}/recommend?${params.toString()}`
-                    );
-                    if (!response.ok) {
-                      throw new Error(`API returned ${response.status}`);
-                    }
-                    const payload: RecommendationResponse =
-                      await response.json();
-                    setRecommendations(payload.items);
-                    setSeedMeta(payload.seed);
-                    setStrategy(payload.strategy);
-                    setQueue([]);
-                    setSeedCandidates([]);
-                    setSuccess(
-                      `Loaded ${payload.items.length} recommendations`
-                    );
-                    toast.success(
-                      `Loaded ${payload.items.length} recommendations`
-                    );
-                  } catch (err) {
-                    const errorMessage =
-                      err instanceof Error
-                        ? err.message
-                        : "Unable to load recommendations";
-                    setError(errorMessage);
-                    toast.error(errorMessage);
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
+                onFetchRecommendations={handleFetch}
                 isLoading={loading}
                 disabled={!seedInput}
               />

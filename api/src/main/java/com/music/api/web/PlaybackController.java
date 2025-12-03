@@ -1,6 +1,5 @@
 package com.music.api.web;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -71,7 +70,7 @@ public class PlaybackController {
         boolean hasPlaybackModify = hasScope(scopes, SCOPE_PLAYBACK_MODIFY);
         boolean hasUserPrivate = hasScope(scopes, SCOPE_USER_PRIVATE);
 
-        List<String> missingScopes = new ArrayList<>();
+        List<String> missingScopes = new java.util.ArrayList<>();
         if (!hasStreaming) {
             missingScopes.add(SCOPE_STREAMING);
         }
