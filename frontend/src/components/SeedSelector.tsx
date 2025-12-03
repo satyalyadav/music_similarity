@@ -5,6 +5,7 @@ import { Sparkles, Link2, Search, Clock, TrendingUp } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { SeedTrackView } from "../types";
 import { useState, useEffect } from "react";
+import { cn } from "./ui/utils";
 
 type SeedMode = "paste" | "search" | "top" | "recent";
 
@@ -156,11 +157,12 @@ export function SeedSelector({
           {isConnected && onSearchTracks && (
             <button
               onClick={() => handleModeChange("search")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer mb-2 ${
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer mb-2",
                 selectedMode === "search"
                   ? "bg-green-50 text-green-700 border border-green-200"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-              }`}
+              )}
               style={
                 selectedMode === "search"
                   ? {
@@ -181,11 +183,12 @@ export function SeedSelector({
               <button
                 onClick={() => handleModeChange("top")}
                 disabled={isLoadingTopSeeds}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mb-2 ${
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mb-2",
                   selectedMode === "top"
                     ? "bg-green-50 text-green-700 border border-green-200"
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                }`}
+                )}
                 style={
                   selectedMode === "top"
                     ? {
@@ -203,11 +206,12 @@ export function SeedSelector({
               <button
                 onClick={() => handleModeChange("recent")}
                 disabled={isLoadingRecentSeeds}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mb-2 ${
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mb-2",
                   selectedMode === "recent"
                     ? "bg-green-50 text-green-700 border border-green-200"
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                }`}
+                )}
                 style={
                   selectedMode === "recent"
                     ? {
@@ -226,11 +230,12 @@ export function SeedSelector({
 
           <button
             onClick={() => handleModeChange("paste")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer mb-2 ${
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer mb-2",
               selectedMode === "paste"
                 ? "bg-green-50 text-green-700 border border-green-200"
                 : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-            }`}
+            )}
             style={
               selectedMode === "paste"
                 ? {

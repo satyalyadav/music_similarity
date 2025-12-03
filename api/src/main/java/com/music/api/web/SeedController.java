@@ -22,9 +22,15 @@ public class SeedController {
     @GetMapping("/me/seeds")
     public ResponseEntity<SeedsResponse> seeds(
         @RequestParam("userId") UUID userId,
-        @RequestParam(name = "limit", defaultValue = "20") int limit
+        @RequestParam(name = "limit", defaultValue = "20") int limit,
+        @RequestParam(name = "mode", defaultValue = "combined") String mode,
+        @RequestParam(name = "timeRange", defaultValue = "short_term") String timeRange
     ) {
-        SeedsResponse response = new SeedsResponse(seedService.getSeedTracks(userId, limit));
+        SeedsResponse response = switch (mode.toLowerCase()) {
+            case "top" -> new SeedsResponse(seedService.getTopSeedTracks(userId, limit, timeRange));
+            case "recent" -> new SeedsResponse(seedService.getRecentSeedTracks(userId, limit));
+            default -> new SeedsResponse(seedService.getCombinedSeedTracks(userId, limit, timeRange));
+        };
         return ResponseEntity.ok(response);
     }
 

@@ -38,12 +38,11 @@ public class SeedService {
         this.spotifyAuthService = spotifyAuthService;
     }
 
-    public List<SeedTrackView> getSeedTracks(UUID userId, int requestedLimit) {
-        int limit = requestedLimit > 0 ? Math.min(requestedLimit, 50) : DEFAULT_LIMIT;
-        UserAuth userAuth = userAuthRepository.findByUserId(userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User authorization not found"));
+    public List<SeedTrackView> getCombinedSeedTracks(UUID userId, int requestedLimit, String timeRange) {
+        int limit = normalizeLimit(requestedLimit);
+        UserAuth userAuth = getUserAuth(userId);
 
-        FetchResult topTracksResult = fetchWithRefresh(userAuth, token -> spotifyApiClient.getTopTracks(token, limit));
+        FetchResult topTracksResult = fetchWithRefresh(userAuth, token -> spotifyApiClient.getTopTracks(token, limit, normalizeTimeRange(timeRange)));
         UserAuth latestAuth = topTracksResult.userAuth();
         List<SeedTrack> combined = new ArrayList<>(topTracksResult.tracks());
 
@@ -60,10 +59,22 @@ public class SeedService {
         return deduped;
     }
 
+    public List<SeedTrackView> getTopSeedTracks(UUID userId, int requestedLimit, String timeRange) {
+        int limit = normalizeLimit(requestedLimit);
+        UserAuth userAuth = getUserAuth(userId);
+
+        FetchResult topTracksResult = fetchWithRefresh(userAuth, token -> spotifyApiClient.getTopTracks(token, limit, normalizeTimeRange(timeRange)));
+        List<SeedTrack> tracks = topTracksResult.tracks();
+        List<SeedTrackView> deduped = deduplicateAndLimit(tracks, limit);
+        if (deduped.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Spotify did not return any candidate tracks");
+        }
+        return deduped;
+    }
+
     public List<SeedTrackView> getRecentSeedTracks(UUID userId, int requestedLimit) {
-        int limit = requestedLimit > 0 ? Math.min(requestedLimit, 50) : DEFAULT_LIMIT;
-        UserAuth userAuth = userAuthRepository.findByUserId(userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User authorization not found"));
+        int limit = normalizeLimit(requestedLimit);
+        UserAuth userAuth = getUserAuth(userId);
 
         FetchResult recentResult = fetchWithRefresh(userAuth, token -> spotifyApiClient.getRecentlyPlayed(token, limit));
         List<SeedTrack> tracks = recentResult.tracks();
@@ -76,15 +87,34 @@ public class SeedService {
     }
 
     public List<SeedTrackView> searchTracks(UUID userId, String query, int requestedLimit) {
-        int limit = requestedLimit > 0 ? Math.min(requestedLimit, 50) : DEFAULT_LIMIT;
-        UserAuth userAuth = userAuthRepository.findByUserId(userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User authorization not found"));
+        int limit = normalizeLimit(requestedLimit);
+        UserAuth userAuth = getUserAuth(userId);
 
         FetchResult searchResult = fetchWithRefresh(userAuth, token -> spotifyApiClient.searchTracks(token, query, limit));
         List<SeedTrack> tracks = searchResult.tracks();
 
         List<SeedTrackView> deduped = deduplicateAndLimit(tracks, limit);
         return deduped;
+    }
+
+    private int normalizeLimit(int requestedLimit) {
+        return requestedLimit > 0 ? Math.min(requestedLimit, 50) : DEFAULT_LIMIT;
+    }
+
+    private UserAuth getUserAuth(UUID userId) {
+        return userAuthRepository.findByUserId(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User authorization not found"));
+    }
+
+    private String normalizeTimeRange(String requestedRange) {
+        if (requestedRange == null) {
+            return "short_term";
+        }
+        return switch (requestedRange.toLowerCase()) {
+            case "medium_term" -> "medium_term";
+            case "long_term" -> "long_term";
+            default -> "short_term";
+        };
     }
 
     private List<SeedTrackView> deduplicateAndLimit(List<SeedTrack> tracks, int limit) {

@@ -44,11 +44,18 @@ public class SpotifyApiClient {
             .bodyToMono(SpotifyUserProfile.class));
     }
 
+    private static final String DEFAULT_TOP_TRACKS_TIME_RANGE = "short_term";
+
     public List<SeedTrack> getTopTracks(String accessToken, int limit) {
+        return getTopTracks(accessToken, limit, DEFAULT_TOP_TRACKS_TIME_RANGE);
+    }
+
+    public List<SeedTrack> getTopTracks(String accessToken, int limit, String timeRange) {
         try {
             TopTracksResponse response = execute(spotifyWebClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/me/top/tracks")
+                    .queryParam("time_range", timeRange != null ? timeRange : DEFAULT_TOP_TRACKS_TIME_RANGE)
                     .queryParam("limit", Math.min(limit, 50))
                     .build())
                 .accept(MediaType.APPLICATION_JSON)

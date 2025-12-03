@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL, RECOMMENDATION_LIMIT } from "./config";
 import { useSpotifyPlayback } from "./hooks/useSpotifyPlayback";
 import {
@@ -29,6 +29,8 @@ type StoredAuth = {
 };
 
 const STORAGE_KEY = "music-similarity-auth";
+const USER_ID_REQUIRED_ERROR =
+  "User ID is required. Click Connect Spotify first.";
 
 const defaultPlaylistName = () => `AI Recs ${new Date().toLocaleDateString()}`;
 
@@ -84,7 +86,6 @@ function App() {
   const playlistDirty =
     queue.length > 0 && queueSignature !== lastSavedSignature;
   const canUsePlayback = playbackEnabled && playback.status === "ready";
-  const playbackToggleDisabled = !userId || playback.status === "loading";
   const isConnected = !!userId;
   // Check for premium status case-insensitively (Spotify may return "premium" or "Premium")
   // Returns: true if premium, false if definitely not premium, undefined if unknown
@@ -220,12 +221,11 @@ function App() {
     playbackEnabled,
   ]);
 
-  async function handleFetch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleFetch() {
     setSuccess(null);
     if (!userId.trim()) {
-      setError("User ID is required. Click Connect Spotify first.");
-      toast.error("User ID is required. Click Connect Spotify first.");
+      setError(USER_ID_REQUIRED_ERROR);
+      toast.error(USER_ID_REQUIRED_ERROR);
       return;
     }
     if (!seedInput.trim()) {
@@ -336,11 +336,11 @@ function App() {
     toast.success("Disconnected from Spotify");
   }
 
-  async function handleFetchSeeds() {
+  async function handleFetchTopSeeds(timeRange: string = "short_term") {
     setSuccess(null);
     if (!userId.trim()) {
-      setError("User ID is required. Click Connect Spotify first.");
-      toast.error("User ID is required. Click Connect Spotify first.");
+      setError(USER_ID_REQUIRED_ERROR);
+      toast.error(USER_ID_REQUIRED_ERROR);
       return;
     }
     setError(null);
@@ -349,6 +349,8 @@ function App() {
       const params = new URLSearchParams({
         userId: userId.trim(),
         limit: "20",
+        mode: "top",
+        timeRange,
       });
       const response = await fetch(
         `${API_BASE_URL}/me/seeds?${params.toString()}`
@@ -381,8 +383,8 @@ function App() {
   async function handleFetchRecentSeeds() {
     setSuccess(null);
     if (!userId.trim()) {
-      setError("User ID is required. Click Connect Spotify first.");
-      toast.error("User ID is required. Click Connect Spotify first.");
+      setError(USER_ID_REQUIRED_ERROR);
+      toast.error(USER_ID_REQUIRED_ERROR);
       return;
     }
     setError(null);
@@ -691,7 +693,7 @@ function App() {
               <SeedSelector
                 seedInput={seedInput}
                 onSeedInputChange={setSeedInput}
-                onFetchTopTracks={handleFetchSeeds}
+                onFetchTopTracks={() => handleFetchTopSeeds()}
                 onFetchRecentlyPlayed={handleFetchRecentSeeds}
                 seedCandidates={seedCandidates}
                 isLoadingTopSeeds={seedLoadingTop}
