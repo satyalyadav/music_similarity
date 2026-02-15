@@ -21,18 +21,41 @@ interface SpotifyPlayerInit {
   volume?: number;
 }
 
+/** Minimal types for Spotify Web Playback SDK state (we only type what we use). */
+interface SpotifyPlaybackState {
+  position?: number;
+  duration?: number;
+  paused?: boolean;
+  track_window?: {
+    current_track?: {
+      id?: string;
+      name?: string;
+      artists?: { name?: string }[];
+      album?: { images?: { url?: string }[] };
+    };
+  };
+}
+
 interface SpotifyPlayer {
   connect(): Promise<boolean>;
   disconnect(): void;
-  addListener(event: string, callback: (...args: any[]) => void): void;
-  removeListener(event: string, callback?: (...args: any[]) => void): void;
+  addListener(event: string, callback: (...args: unknown[]) => void): void;
+  removeListener(event: string, callback?: (...args: unknown[]) => void): void;
   pause(): Promise<void>;
   resume(): Promise<void>;
   seek?(positionMs: number): Promise<void>;
-  getCurrentState?: () => Promise<any>;
+  getCurrentState?: () => Promise<SpotifyPlaybackState | null>;
   setVolume?: (volume: number) => Promise<void>;
   getVolume?: () => Promise<number>;
   activateElement?: () => Promise<void>;
+}
+
+/** EME (Encrypted Media Extensions) for Widevine; not present on all environments. */
+interface NavigatorWithEME {
+  requestMediaKeySystemAccess?(
+    keySystem: string,
+    supportedConfigurations: MediaKeySystemConfiguration[]
+  ): Promise<unknown>;
 }
 
 interface SpotifyNamespace {
@@ -156,8 +179,8 @@ export function useSpotifyPlayback({
 
   async function isWidevineSupported(): Promise<boolean> {
     try {
-      const anyNavigator: any = navigator as any;
-      if (!("requestMediaKeySystemAccess" in anyNavigator)) {
+      const nav = navigator as NavigatorWithEME;
+      if (typeof nav.requestMediaKeySystemAccess !== "function") {
         return false;
       }
       // Probe for Widevine EME support. This mirrors Spotify SDK requirements.
@@ -171,10 +194,7 @@ export function useSpotifyPlayback({
         persistentState: "optional",
         sessionTypes: ["temporary"],
       } as unknown as MediaKeySystemConfiguration;
-      await (navigator as any).requestMediaKeySystemAccess(
-        "com.widevine.alpha",
-        [config]
-      );
+      await nav.requestMediaKeySystemAccess("com.widevine.alpha", [config]);
       return true;
     } catch {
       return false;
@@ -292,8 +312,10 @@ export function useSpotifyPlayback({
         volume: 0.8,
       });
 
-      player.addListener("ready", ({ device_id }: { device_id: string }) => {
-        if (cancelled) {
+      player.addListener("ready", (...args: unknown[]) => {
+        const payload = args[0] as { device_id?: string } | undefined;
+        const device_id = payload?.device_id;
+        if (cancelled || typeof device_id !== "string") {
           return;
         }
         deviceIdRef.current = device_id;
@@ -307,18 +329,19 @@ export function useSpotifyPlayback({
         setStatus("loading");
       });
 
-      const handleError = ({ message }: { message: string }) => {
+      const handleError = (...args: unknown[]) => {
+        const payload = args[0] as { message?: string } | undefined;
+        const message = payload?.message ?? "";
         if (cancelled) {
           return;
         }
         // Ignore scope check errors from Spotify SDK - these are non-critical
         // The SDK makes internal calls to check_scope that may fail with 403,
         // but playback still works fine
-        const errorMessage = message || "";
         if (
-          errorMessage.toLowerCase().includes("check_scope") ||
-          errorMessage.toLowerCase().includes("melody") ||
-          errorMessage.toLowerCase().includes("invalid token scopes")
+          message.toLowerCase().includes("check_scope") ||
+          message.toLowerCase().includes("melody") ||
+          message.toLowerCase().includes("invalid token scopes")
         ) {
           // Silently ignore these non-critical errors
           return;
@@ -333,16 +356,19 @@ export function useSpotifyPlayback({
       player.addListener("playback_error", handleError);
 
       // Keep local playback state in sync for UI (progress, metadata)
-      const applyState = (state: any) => {
-        if (!state) {
+      const applyState = (state: unknown) => {
+        if (state === null || state === undefined) {
           setPositionMs(undefined);
           setDurationMs(undefined);
           setPaused(undefined);
           setTrack(undefined);
           return;
         }
-
-        const maybeCurrent = state.track_window?.current_track;
+        if (typeof state !== "object" || !("track_window" in state)) {
+          return;
+        }
+        const s = state as SpotifyPlaybackState;
+        const maybeCurrent = s.track_window?.current_track;
         if (switchingTracksRef.current) {
           if (!maybeCurrent?.id || maybeCurrent.id !== nextTrackIdRef.current) {
             return;
@@ -371,7 +397,7 @@ export function useSpotifyPlayback({
         const now = Date.now();
         const withinSeekWindow =
           !!lastSeekAtRef.current && now - lastSeekAtRef.current < 600;
-        const incomingPos = state.position ?? 0;
+        const incomingPos = s.position ?? 0;
         if (withinSeekWindow && lastSeekTargetRef.current != null) {
           const lowerBound = Math.max(0, lastSeekTargetRef.current - 120);
           if (incomingPos < lowerBound) {
@@ -421,8 +447,8 @@ export function useSpotifyPlayback({
             seekAnimTimerRef.current = null;
           }
         }
-        setDurationMs(state.duration ?? 0);
-        setPaused(!!state.paused);
+        setDurationMs(s.duration ?? 0);
+        setPaused(!!s.paused);
         if (maybeCurrent) {
           const imageUrl =
             Array.isArray(maybeCurrent.album?.images) &&
@@ -432,7 +458,7 @@ export function useSpotifyPlayback({
           const artist =
             Array.isArray(maybeCurrent.artists) &&
             maybeCurrent.artists.length > 0
-              ? maybeCurrent.artists.map((a: any) => a.name).join(", ")
+              ? maybeCurrent.artists.map((a) => a.name).join(", ")
               : null;
           setTrack({
             id: maybeCurrent.id ?? null,
@@ -464,8 +490,10 @@ export function useSpotifyPlayback({
           try {
             const state = await player.getCurrentState!();
             applyState(state);
-          } catch {
-            // ignore polling errors
+          } catch (err) {
+            if (import.meta.env.DEV) {
+              console.debug("Spotify playback: poll getCurrentState failed", err);
+            }
           }
         }, 500) as unknown as number;
       }
@@ -486,8 +514,10 @@ export function useSpotifyPlayback({
           const v = await player.getVolume!();
           if (!cancelled) setVolume(v);
         }
-      } catch {
-        // ignore getVolume failures
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.debug("Spotify playback: init getVolume failed", err);
+        }
       }
     })().catch((err) => {
       if (!cancelled) {
@@ -534,16 +564,20 @@ export function useSpotifyPlayback({
           // But we'll still try to play - the SDK should handle reconnection
           deviceIsActive = state !== null;
         }
-      } catch {
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.debug("Spotify playback: getCurrentState (device check) failed", err);
+        }
         // If we can't get state, assume device might be inactive
-        // We'll still try to play, but skip the pause API call
         deviceIsActive = false;
       }
 
       try {
         await playerRef.current.activateElement?.();
-      } catch {
-        // ignored: activateElement fails silently if already active
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.debug("Spotify playback: activateElement failed", err);
+        }
       }
 
       // If switching tracks, mute and pause via Web API to stop device audio immediately
@@ -557,17 +591,29 @@ export function useSpotifyPlayback({
           if (typeof playerRef.current.getVolume === "function") {
             try {
               previousVolumeRef.current = await playerRef.current.getVolume!();
-            } catch {}
+            } catch (err) {
+              if (import.meta.env.DEV) {
+                console.debug("Spotify playback: getVolume before switch failed", err);
+              }
+            }
           }
           if (typeof playerRef.current.setVolume === "function") {
             try {
               await playerRef.current.setVolume!(0);
-            } catch {}
+            } catch (err) {
+              if (import.meta.env.DEV) {
+                console.debug("Spotify playback: setVolume(0) before switch failed", err);
+              }
+            }
           }
           await new Promise((resolve) => setTimeout(resolve, 120));
           try {
             await playerRef.current.pause();
-          } catch {}
+          } catch (err) {
+            if (import.meta.env.DEV) {
+              console.debug("Spotify playback: pause before switch failed", err);
+            }
+          }
           // Only try to pause via API if device appears active
           // This prevents 404 errors when device is inactive after being idle
           // If device is inactive, there's nothing to pause anyway
@@ -592,8 +638,10 @@ export function useSpotifyPlayback({
             }
           }
           await waitForPause();
-        } catch {
-          // non-fatal
+        } catch (err) {
+          if (import.meta.env.DEV) {
+            console.debug("Spotify playback: track switch (mute/pause) failed", err);
+          }
         }
       } else {
         currentTrackIdRef.current = spotifyTrackId;
@@ -726,7 +774,11 @@ export function useSpotifyPlayback({
             }
           }
         }
-      } catch {}
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.debug("Spotify playback: getCurrentState after seek failed", err);
+        }
+      }
     },
     [durationMs]
   );
@@ -742,8 +794,10 @@ export function useSpotifyPlayback({
     try {
       await playerRef.current.setVolume!(clamped);
       setVolume(clamped);
-    } catch {
-      // ignore setVolume errors
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.debug("Spotify playback: setVolume failed", err);
+      }
     }
   }, []);
 
