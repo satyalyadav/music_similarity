@@ -629,7 +629,11 @@ export function useSpotifyPlayback({
               );
               // Silently ignore 404 errors - device is inactive, nothing to pause
               // Only log other errors for debugging
-              if (!pauseResponse.ok && pauseResponse.status !== 404) {
+              if (
+                import.meta.env.DEV &&
+                !pauseResponse.ok &&
+                pauseResponse.status !== 404
+              ) {
                 console.warn("Failed to pause via API:", pauseResponse.status);
               }
             } catch (err) {

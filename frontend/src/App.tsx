@@ -34,6 +34,14 @@ const USER_ID_REQUIRED_ERROR =
 
 const defaultPlaylistName = () => `AI Recs ${new Date().toLocaleDateString()}`;
 
+/** Spotify product string → true if premium, false if not, undefined if unknown. */
+function isPremiumProduct(
+  product: string | null | undefined
+): boolean | undefined {
+  if (product == null) return undefined;
+  return product.toLowerCase() === "premium";
+}
+
 function App() {
   const [userId, setUserId] = useState("");
   const [seedInput, setSeedInput] = useState("");
@@ -87,11 +95,8 @@ function App() {
     queue.length > 0 && queueSignature !== lastSavedSignature;
   const canUsePlayback = playbackEnabled && playback.status === "ready";
   const isConnected = !!userId;
-  // Check for premium status case-insensitively (Spotify may return "premium" or "Premium")
-  // Returns: true if premium, false if definitely not premium, undefined if unknown
   const product = userProfile?.product || playback.product;
-  const isPremium =
-    product == null ? undefined : product.toLowerCase() === "premium";
+  const isPremium = isPremiumProduct(product);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -191,35 +196,18 @@ function App() {
       return;
     }
 
-    // Check if user is premium - prioritize userProfile.product since it's available immediately
-    // playback.product is only available after playback is enabled
-    // Use case-insensitive comparison (Spotify may return "premium" or "Premium")
-    const product = userProfile?.product || playback.product;
-    const userIsPremium =
-      product != null && product.toLowerCase() === "premium";
-    const userIsNotPremium =
-      product != null && product.toLowerCase() !== "premium";
-
     // Only auto-enable if we have a definitive premium status and playback isn't already enabled
     if (
-      userIsPremium &&
+      isPremium === true &&
       !playbackEnabled &&
       playback.status !== "loading" &&
       playback.status !== "error"
     ) {
-      // Automatically enable playback for premium users
       setPlaybackEnabled(true);
-    } else if (userIsNotPremium && playbackEnabled) {
-      // Ensure playback is disabled for non-premium users
+    } else if (isPremium === false && playbackEnabled) {
       setPlaybackEnabled(false);
     }
-  }, [
-    isConnected,
-    userProfile?.product,
-    playback.product,
-    playback.status,
-    playbackEnabled,
-  ]);
+  }, [isConnected, isPremium, playbackEnabled, playback.status]);
 
   async function handleFetch() {
     setSuccess(null);
