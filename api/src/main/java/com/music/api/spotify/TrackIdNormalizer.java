@@ -29,7 +29,18 @@ public final class TrackIdNormalizer {
         if (trimmed.startsWith(TRACK_URL_PREFIX)) {
             String remainder = trimmed.substring(TRACK_URL_PREFIX.length());
             int queryIndex = remainder.indexOf('?');
-            return queryIndex >= 0 ? remainder.substring(0, queryIndex) : remainder;
+            int fragmentIndex = remainder.indexOf('#');
+
+            int cutIndex = remainder.length();
+            if (queryIndex >= 0) {
+                cutIndex = Math.min(cutIndex, queryIndex);
+            }
+            if (fragmentIndex >= 0) {
+                cutIndex = Math.min(cutIndex, fragmentIndex);
+            }
+
+            String normalized = remainder.substring(0, cutIndex);
+            return normalized.endsWith("/") ? normalized.substring(0, normalized.length() - 1) : normalized;
         }
         return trimmed;
     }
